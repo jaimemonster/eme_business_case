@@ -14,6 +14,8 @@ from typing import Dict, List
 
 import pandas as pd
 
+from . import config
+
 # Columna que identifica el producto en cada tabla.
 COLUMNA_SKU = "SKU"
 
@@ -97,9 +99,19 @@ def detectar_claves_huerfanas(tablas: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
-def detectar_valores_imposibles(tablas: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+def detectar_valores_imposibles(
+    tablas: Dict[str, pd.DataFrame],
+    fecha_referencia: pd.Timestamp | None = None,
+) -> pd.DataFrame:
     """Marca valores fuera de rango: unidades/precios negativos, fechas fuera del
-    periodo, descuentos superiores al importe, costes mayores que el PVP, etc."""
+    periodo, descuentos superiores al importe, costes mayores que el PVP, etc.
+
+    `fecha_referencia` es el "hoy" contra el que se juzga si una compra está
+    vencida. Por defecto, la fecha de corte de los datos (`FECHA_CORTE_DATOS`),
+    que es independiente de la semana que analice el informe del Reto 1.
+    """
+    if fecha_referencia is None:
+        fecha_referencia = pd.Timestamp(config.FECHA_CORTE_DATOS)
     ventas = tablas["VENTAS"]
     compras = tablas["COMPRAS"]
     producto = tablas["PRODUCTO"]
@@ -120,7 +132,7 @@ def detectar_valores_imposibles(tablas: Dict[str, pd.DataFrame]) -> pd.DataFrame
         ("VENTAS", "descuento > importe bruto", int((descuento > bruto).sum())),
         ("COMPRAS", "unidades <= 0", int((compras["Unidades"].astype(float) <= 0).sum())),
         ("COMPRAS", "fecha real anterior a la estimada", int((real < estimada).sum())),
-        ("COMPRAS", "sin fecha real y estimada ya vencida", int((real.isna() & (estimada <= pd.Timestamp("2025-11-09"))).sum())),
+        ("COMPRAS", "sin fecha real y estimada ya vencida", int((real.isna() & (estimada <= fecha_referencia)).sum())),
         ("STOCK", "stock negativo", int((stock["Stock disponible (uds)"].astype(float) < 0).sum())),
         ("PRODUCTO", "coste >= PVP", int((producto["Coste unitario (€)"].astype(float) >= producto["PVP (€)"].astype(float)).sum())),
         ("PRODUCTO", "coste <= 0", int((producto["Coste unitario (€)"].astype(float) <= 0).sum())),

@@ -28,13 +28,25 @@ FICHERO_EXCEL: Path = DIR_RAW / "EME_Caso_Practico_Datos.xlsx"
 PESTANAS: tuple[str, ...] = ("VENTAS", "PRODUCTO", "STOCK", "COMPRAS")
 PESTANA_DOC: str = "LEEME"
 
-# --- Fechas de análisis (semanas ISO, lunes a domingo) ---------------------
+# --- Fechas ----------------------------------------------------------------
+# FECHA_CORTE_DATOS es el "hoy" del caso: el último día con datos. Todo lo que
+# signifique "a día de hoy" (compras vencidas, stock disponible, antigüedad de
+# un drop) se mide contra esta fecha, en los TRES retos.
+#
+# SEMANA_ACTUAL es otra cosa: el periodo que analiza el informe semanal, y solo
+# afecta al Reto 1. Coincide que su último día es la fecha de corte, pero son
+# conceptos independientes: si el informe se mirase otra semana, FECHA_CORTE_DATOS
+# no cambiaría.
+FECHA_CORTE_DATOS: dt.date = dt.date(2025, 11, 9)
+INICIO_DATOS: dt.date = dt.date(2024, 1, 1)
+
+# --- Fechas de análisis del Reto 1 (semanas ISO, lunes a domingo) ----------
 SEMANA_ACTUAL: tuple[dt.date, dt.date] = (dt.date(2025, 11, 3), dt.date(2025, 11, 9))
 SEMANA_ANTERIOR: tuple[dt.date, dt.date] = (dt.date(2025, 10, 27), dt.date(2025, 11, 2))
 SEMANA_ANO_ANTERIOR: tuple[dt.date, dt.date] = (dt.date(2024, 11, 4), dt.date(2024, 11, 10))
 
-FECHA_CIERRE_STOCK: dt.date = dt.date(2025, 11, 9)
-INICIO_DATOS: dt.date = dt.date(2024, 1, 1)
+# El snapshot de stock está tomado a la fecha de corte.
+FECHA_CIERRE_STOCK: dt.date = FECHA_CORTE_DATOS
 
 # --- Parámetros de reposición ----------------------------------------------
 LEAD_TIME_SEMANAS: int = 6

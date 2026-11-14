@@ -28,18 +28,42 @@ def tabla_html(df: pd.DataFrame, titulo: str) -> str:
     raise NotImplementedError
 
 
-def seccion_decisiones(reto: str) -> str:
-    """Renderiza la sección "Decisiones y supuestos" del informe a partir de
-    docs/decisiones.md, filtrando las entradas que afectan al reto indicado.
+def bloque_decision_plegable(
+    titulo: str,
+    que_pasaba: str,
+    ejemplo: pd.DataFrame,
+    decision: str,
+    impacto: str,
+) -> str:
+    """Renderiza una decisión como bloque plegable (`<details>`/`<summary>`).
 
-    Nunca se escribe a mano: la fuente de verdad es el log de decisiones.
+    Cerrado se ve solo el titular; al desplegarlo aparecen el problema, un
+    ejemplo con filas reales del dato original, la decisión con sus alternativas
+    descartadas, y el impacto sobre las cifras del informe.
+
+    Se usa HTML nativo a propósito: sin JavaScript, el informe sigue siendo un
+    único fichero que funciona con doble clic.
     """
     raise NotImplementedError
 
 
-def seccion_calidad_datos() -> str:
-    """Renderiza el resumen de calidad de datos a partir de
-    docs/notas_calidad_datos.md: qué se encontró, qué se corrigió y qué no."""
+def pagina_decisiones(reto: str, ejemplos: Dict[str, pd.DataFrame]) -> str:
+    """Construye la página "Decisiones y calidad de datos" del informe.
+
+    Lee las decisiones de docs/decisiones.md filtrando por reto, y las empareja
+    con los ejemplos extraídos de los datos crudos durante el perfilado. Nunca se
+    escribe a mano: la fuente de verdad es el log de decisiones.
+    """
+    raise NotImplementedError
+
+
+def recopilar_ejemplos_decisiones(tablas_crudas: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+    """Extrae de las tablas CRUDAS las filas que ilustran cada decisión (las 25
+    duplicadas, las 10 devoluciones, los SKUs en minúscula, EME999-BLA-M...).
+
+    Se toman de `data/raw` a propósito: el ejemplo tiene que enseñar el problema
+    tal como estaba, no ya corregido.
+    """
     raise NotImplementedError
 
 
