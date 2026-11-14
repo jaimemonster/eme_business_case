@@ -157,3 +157,62 @@
 - **Impacto:** en el Reto 2, contarlas como stock en camino llevaría a reponer de
   menos para unidades que probablemente no lleguen.
 - **Estado:** marcado; tratamiento pendiente de decidir en el Reto 2.
+
+### [2026-11-14] `modelo_id` se construye con la referencia del SKU, no con el nombre
+- **Contexto:** la regla 4 dice "modelo = producto + color". Agrupando por el
+  **nombre comercial** aparecen 4 colisiones: productos distintos que comparten
+  nombre y color. El caso más claro es `ECHO BOMBER OLIVE`, que es a la vez una
+  chaqueta de **HOMBRE a 100 €** (ref. EME045, drop 2024-05) y una de **MUJER a
+  140 €** (ref. EME076, drop 2024-03). También `NOVA JOGGER BROWN`,
+  `RIOT OVERSIZE CREAM` y `VAPOR REGULAR BLACK`.
+- **Opciones consideradas:** agrupar por nombre y aceptar la fusión. Descartada:
+  creaba modelos inexistentes con dos secciones y dos precios, y contaminaba el
+  sell-through y el margen de ambos.
+- **Decisión:** `modelo_id` = **referencia del SKU + color** (`EME045-OLI`), que es
+  el producto de verdad. Para mostrar, el nombre comercial; si dos modelos lo
+  comparten, se desambigua añadiendo el drop.
+- **Reto:** 1 y 2.
+- **Impacto:** 119 → **123 modelos**. Sin esto, 4 modelos aparecerían fusionados en
+  los rankings y en las alertas de stock.
+- **Estado:** detectado al revisar los rankings; no lo vio el perfilado inicial.
+
+### [2026-11-14] La ventana del forecast es de 4 semanas, elegida por backtesting
+- **Contexto:** el negocio tiene una rampa estacional fuerte (de ~115 uds/semana en
+  agosto a ~600 en octubre). Una ventana larga la persigue con retraso.
+- **Decisión:** media móvil de **4 semanas**, excluyendo ventas a precio especial.
+  Validado con backtesting de origen móvil sobre 13 cortes del último año:
+  MAE 2,09 y sesgo +9,8 %, frente a MAE 2,05 y sesgo +20,1 % con 8 semanas. El
+  error apenas cambia y el sesgo se reduce a la mitad.
+- **Reto:** 1 (alertas de rotura) y 2 (reposición).
+- **Impacto:** un sesgo ligeramente positivo es el lado correcto del error para
+  reponer: cuesta menos tener stock de más que romper.
+- **Estado:** validado con los datos.
+
+### [2026-11-14] Un modelo está en rotura si le falta ALGUNA talla
+- **Contexto:** agregando a modelo antes de comparar demanda y stock, la rotura
+  desaparecía: ningún modelo rompía en conjunto, pero 43 SKUs sí.
+- **Decisión:** la rotura se calcula a nivel de SKU y se agrega contando tallas
+  afectadas. Un modelo con exceso de XL y cero de M está en rotura.
+- **Reto:** 1 y 2.
+- **Impacto:** de 0 modelos en rotura a **37 modelos / 43 tallas**.
+- **Estado:** confirmado.
+
+### [2026-11-14] El exceso de stock se prioriza por capital inmovilizado
+- **Contexto:** con el umbral de cobertura (> 16 semanas, el doble del objetivo),
+  **103 de 123 modelos** quedan marcados. Una lista de 103 no es accionable.
+- **Decisión:** se mantiene el umbral para medir, pero la lista se ordena por
+  **capital inmovilizado** = unidades por encima de la cobertura objetivo × coste.
+- **Reto:** 1.
+- **Impacto:** convierte una lista de 103 en un top accionable. Total:
+  11.705 uds de exceso, **191.400 € a coste**.
+- **Estado:** confirmado.
+
+### [2026-11-14] La pregunta 2 se responde con el 0 % y con la estacionalidad
+- **Contexto:** la semana analizada no tiene ni una venta a precio especial, y la
+  del año pasado tampoco. Responder "0 %" a secas no aporta nada.
+- **Decisión:** se responde que esta semana es 0 % **y** se muestra que el precio
+  especial es estacional, concentrado en campañas (rebajas de enero, verano y
+  Black Friday en noviembre de 2024). Se desglosa aparte la promoción `WELCOME10`,
+  que sí está activa: 45 uds esta semana.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.

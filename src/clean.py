@@ -98,8 +98,26 @@ def limpiar_producto(df: pd.DataFrame) -> pd.DataFrame:
     p["pvp"] = p["pvp"].astype(float)
 
     # Regla 4: modelo = producto + color.
-    p["modelo_id"] = p["producto"] + "-" + p["color"]
+    #
+    # El identificador se construye con la REFERENCIA del SKU (EME045), no con el
+    # nombre comercial. Motivo: hay 3 casos de productos distintos que comparten
+    # nombre y color, lanzados en drops diferentes y con PVP distinto. "ECHO
+    # BOMBER OLIVE" es a la vez una chaqueta de HOMBRE a 100 € (EME045, drop
+    # 2024-05) y una de MUJER a 140 € (EME076, drop 2024-03). Agruparlos por
+    # nombre los fusionaría en un modelo inexistente, con dos secciones y dos
+    # precios. Ver docs/decisiones.md.
+    partes = p["sku"].str.split("-", expand=True)
+    p["referencia"] = partes[0]
+    p["color_cod"] = partes[1]
+    p["modelo_id"] = p["referencia"] + "-" + p["color_cod"]
+
+    # Nombre para mostrar. Si dos modelos comparten nombre, se desambigua con el
+    # drop para que nadie los confunda al leer el informe.
     p["modelo_nombre"] = p["producto"] + " " + p["color"]
+    ambiguos = p.groupby("modelo_nombre")["modelo_id"].transform("nunique") > 1
+    p.loc[ambiguos, "modelo_nombre"] = (
+        p.loc[ambiguos, "modelo_nombre"] + " (" + p.loc[ambiguos, "drop"] + ")"
+    )
     return p
 
 
