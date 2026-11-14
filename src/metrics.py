@@ -253,9 +253,15 @@ def alertas_stock(
             tallas_en_rotura=("sku", "count"),
             tallas_sin_stock=("stock_disponible", lambda x: int((x == 0).sum())),
             deficit_unidades=("deficit", "sum"),
-            demanda_horizonte=("demanda_horizonte", "sum"),
+            # Las tres cifras siguientes son SOLO de las tallas en rotura, para
+            # que el déficit se pueda comprobar restando. El stock del modelo
+            # entero va aparte: mezclarlos hace que las cuentas no cuadren.
+            demanda_tallas_rotura=("demanda_horizonte", "sum"),
+            stock_tallas_rotura=("stock_disponible", "sum"),
+            en_camino_tallas_rotura=("en_camino", "sum"),
         )
         .merge(por_modelo[["modelo_id", "tallas", "stock_disponible", "en_camino"]], on="modelo_id")
+        .rename(columns={"stock_disponible": "stock_modelo", "en_camino": "en_camino_modelo"})
         .round(1)
         .sort_values("deficit_unidades", ascending=False)
     )
@@ -337,6 +343,203 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
     metricas.update({f"ranking_{k}": v for k, v in ranking_modelos(ventas, stock, semana).items()})
     metricas.update(alertas_stock(ventas, stock, compras, tablas["producto"]))
 
+    producto = tablas["producto"]
+    metricas.update(
+        {
+            "evolucion_semanal": evolucion_semanal(ventas),
+            "estacionalidad_especial": estacionalidad_precio_especial(ventas),
+            "curva_tallas": curva_tallas(ventas, stock),
+            "fiabilidad_proveedores": fiabilidad_proveedores(compras),
+            "sell_through_drop": sell_through_por_drop(ventas, stock, producto),
+            "crecimiento": descomposicion_crecimiento(ventas, semana, config.SEMANA_ANO_ANTERIOR),
+            "concentracion": concentracion_ventas(ventas),
+            "sensibilidad_umbral": sensibilidad_umbral_exceso(ventas, stock, compras, producto),
+            "resumen_limpieza": tablas["resumen_limpieza"],
+        }
+    )
+
     for nombre, df in metricas.items():
         storage.guardar_tabla(df, nombre, config.DIR_PROCESSED)
     return metricas
+
+
+# ---------------------------------------------------------------------------
+# Indicadores adicionales. No los pide el enunciado, pero responden a las
+# preguntas que surgen al leer las cuatro obligatorias.
+# ---------------------------------------------------------------------------
+
+
+def evolucion_semanal(ventas: pd.DataFrame, n_semanas: int = 26) -> pd.DataFrame:
+    """Serie semanal de unidades, facturación y margen de las últimas semanas."""
+    g = (
+        ventas.groupby("inicio_semana")
+        .agg(
+            unidades=("unidades", "sum"),
+            facturacion_neta=("facturacion_neta", "sum"),
+            margen=("margen", "sum"),
+        )
+        .reset_index()
+        .sort_values("inicio_semana")
+        .tail(n_semanas)
+    )
+    g["margen_pct"] = (100 * g["margen"] / g["facturacion_neta"]).round(1)
+    return g.reset_index(drop=True)
+
+
+def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
+    """Unidades a precio especial y a precio completo por mes.
+
+    Responde al "0 % esta semana": el precio especial no es continuo, se
+    concentra en campañas.
+    """
+    v = ventas.copy()
+    v["mes"] = v["fecha"].dt.to_period("M").dt.to_timestamp()
+    g = (
+        v.groupby("mes")
+        .apply(
+            lambda x: pd.Series(
+                {
+                    "uds_especial": x.loc[x["is_special"], "unidades"].sum(),
+                    "uds_total": x["unidades"].sum(),
+                }
+            ),
+            include_groups=False,
+        )
+        .reset_index()
+    )
+    g["pct_especial"] = (100 * g["uds_especial"] / g["uds_total"]).round(1)
+    return g
+
+
+def curva_tallas(ventas: pd.DataFrame, stock: pd.DataFrame, semanas: int = 12) -> pd.DataFrame:
+    """Compara el reparto de la demanda reciente por talla con el del stock.
+
+    Es la explicación de la paradoja de tener mucho stock y a la vez roturas:
+    el almacén no está mal dimensionado, está mal repartido.
+    """
+    desde = ventas["fecha"].max() - pd.Timedelta(weeks=semanas)
+    reciente = ventas[ventas["fecha"] >= desde]
+
+    demanda = reciente.groupby("talla")["unidades"].sum().rename("demanda")
+    disponible = stock.groupby("talla")["stock_disponible"].sum().rename("stock")
+
+    df = pd.concat([demanda, disponible], axis=1).fillna(0)
+    df["pct_demanda"] = (100 * df["demanda"] / df["demanda"].sum()).round(1)
+    df["pct_stock"] = (100 * df["stock"] / df["stock"].sum()).round(1)
+    df["desvio_pp"] = (df["pct_stock"] - df["pct_demanda"]).round(1)
+    # Unidades que sobran o faltan si el stock siguiera la curva de la demanda.
+    df["stock_ideal"] = (df["demanda"] / df["demanda"].sum() * df["stock"].sum()).round(0)
+    df["desvio_uds"] = (df["stock"] - df["stock_ideal"]).round(0)
+
+    orden = {"XS": 0, "S": 1, "M": 2, "L": 3, "XL": 4, "XXL": 5, "U": 6}
+    return df.reset_index().sort_values("talla", key=lambda s: s.map(orden)).reset_index(drop=True)
+
+
+def fiabilidad_proveedores(compras: pd.DataFrame) -> pd.DataFrame:
+    """Puntualidad de cada proveedor frente a su propia fecha estimada."""
+    llegadas = compras[compras["fecha_llegada_real"].notna()]
+    g = llegadas.groupby("proveedor").agg(
+        entregas=("sku", "size"),
+        retraso_medio=("dias_retraso", "mean"),
+        pct_tarde=("dias_retraso", lambda x: 100 * (x > 0).mean()),
+        retraso_maximo=("dias_retraso", "max"),
+    )
+    vencidas = compras[compras["esta_vencida"]].groupby("proveedor").size().rename("vencidas")
+    return g.join(vencidas).fillna(0).round(1).reset_index()
+
+
+def sell_through_por_drop(
+    ventas: pd.DataFrame, stock: pd.DataFrame, producto: pd.DataFrame
+) -> pd.DataFrame:
+    """Sell-through de cada drop junto a su antigüedad.
+
+    La antigüedad es imprescindible para leerlo: un drop nuevo con sell-through
+    bajo es normal; uno viejo con sell-through bajo está atascado.
+    """
+    vendido = ventas.groupby("drop")["unidades"].sum().rename("vendido")
+    disponible = stock.groupby("drop")["stock_disponible"].sum().rename("stock")
+    primera = ventas.groupby("drop")["fecha"].min().rename("primera_venta")
+    coste = producto.groupby("drop")["coste_unitario"].mean().rename("coste_medio")
+
+    df = pd.concat([primera, vendido, disponible, coste], axis=1).fillna(0)
+    df["semanas_vida"] = (
+        (pd.Timestamp(config.FECHA_CORTE_DATOS) - df["primera_venta"]).dt.days // 7
+    )
+    df["sell_through_pct"] = (100 * df["vendido"] / (df["vendido"] + df["stock"])).round(1)
+    df["capital"] = (df["stock"] * df["coste_medio"]).round(0)
+    return df.reset_index().sort_values("semanas_vida", ascending=False).reset_index(drop=True)
+
+
+def descomposicion_crecimiento(
+    ventas: pd.DataFrame, semana_actual: Periodo, semana_referencia: Periodo
+) -> pd.DataFrame:
+    """Descompone la variación de facturación en pedidos x cesta x precio medio.
+
+    Facturación = pedidos x unidades por pedido x precio medio por unidad. Saber
+    cuál de los tres factores se mueve cambia la decisión: no es lo mismo crecer
+    por captación que por subida de precio.
+    """
+    filas = []
+    for nombre, periodo in [("actual", semana_actual), ("referencia", semana_referencia)]:
+        w = _filtrar_periodo(ventas, periodo)
+        pedidos = w["pedido"].nunique()
+        unidades = w["unidades"].sum()
+        facturacion = w["facturacion_neta"].sum()
+        filas.append(
+            {
+                "periodo": nombre,
+                "pedidos": pedidos,
+                "uds_por_pedido": round(unidades / pedidos, 2),
+                "precio_medio_ud": round(facturacion / unidades, 2),
+                "ticket_medio": round(facturacion / pedidos, 2),
+                "facturacion_neta": round(facturacion, 2),
+            }
+        )
+    df = pd.DataFrame(filas).set_index("periodo")
+    variacion = (100 * (df.loc["actual"] / df.loc["referencia"] - 1)).round(1)
+    variacion.name = "variacion_pct"
+    return pd.concat([df, variacion.to_frame().T]).reset_index(names="periodo")
+
+
+def concentracion_ventas(ventas: pd.DataFrame, semanas: int = 12) -> pd.DataFrame:
+    """Cuántos modelos concentran el 50 %, 80 % y 90 % de la facturación."""
+    desde = ventas["fecha"].max() - pd.Timedelta(weeks=semanas)
+    reciente = ventas[ventas["fecha"] >= desde]
+    por_modelo = reciente.groupby("modelo_id")["facturacion_neta"].sum().sort_values(ascending=False)
+    acumulado = por_modelo.cumsum() / por_modelo.sum()
+    total_catalogo = ventas["modelo_id"].nunique()
+
+    filas = []
+    for umbral in (0.5, 0.8, 0.9):
+        n = int((acumulado <= umbral).sum()) + 1
+        filas.append(
+            {
+                "pct_facturacion": int(100 * umbral),
+                "n_modelos": n,
+                "pct_catalogo": round(100 * n / total_catalogo, 0),
+            }
+        )
+    return pd.DataFrame(filas)
+
+
+def sensibilidad_umbral_exceso(
+    ventas: pd.DataFrame, stock: pd.DataFrame, compras: pd.DataFrame, producto: pd.DataFrame
+) -> pd.DataFrame:
+    """Cuántos modelos quedan marcados como exceso según dónde se ponga el umbral.
+
+    Hace transparente una decisión que es nuestra, no del enunciado: si el
+    resultado apenas cambia entre 8 y 16 semanas, el umbral deja de ser el
+    problema.
+    """
+    alertas = alertas_stock(ventas, stock, compras, producto)
+    cobertura = alertas["exceso_por_modelo"]["cobertura_semanas"]
+    total = ventas["modelo_id"].nunique()
+    filas = [
+        {
+            "umbral_semanas": u,
+            "modelos": int((cobertura > u).sum()),
+            "pct_catalogo": round(100 * int((cobertura > u).sum()) / total, 0),
+        }
+        for u in (8, 12, 16, 20, 24, 32, 52)
+    ]
+    return pd.DataFrame(filas)

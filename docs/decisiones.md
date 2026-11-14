@@ -216,3 +216,38 @@
   que sí está activa: 45 uds esta semana.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-14] El informe es un HTML autocontenido, no una aplicación
+- **Contexto:** el entregable tiene que poder abrirlo dirección un lunes por la mañana.
+- **Decisión:** un único fichero `.html` de ~5 MB con Plotly embebido, que se abre con
+  doble clic. Sin servidor, sin `localhost`, sin conexión y sin nada que instalar.
+  Se puede reenviar por correo tal cual.
+- **Opciones consideradas:** un dashboard servido (Streamlit, Dash). Descartado para
+  este reto: añade una dependencia operativa para un informe que se lee, no se opera.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.
+
+### [2026-11-14] Paleta de un solo acento, validada con el validador de `dataviz`
+- **Contexto:** dirección estética tipo Apple: sobrio, un único color de acento, y
+  verde/rojo reservados a las variaciones.
+- **Decisión:** acento `#0071e3` en claro y `#0a84ff` en oscuro. Los seis checks del
+  validador pasan contra las dos superficies reales (`#fbfbfd` y `#161617`).
+  La mayoría de los gráficos son de **una sola serie**, así que el color no codifica
+  identidad. Donde hay dos series (curva de tallas, estacionalidad) se usa el patrón
+  de énfasis: la serie de contexto en gris y la relevante en el acento, siempre con
+  leyenda y etiquetas directas.
+- **Nota sobre el verde y el rojo:** ningún par rojo/verde supera la separación para
+  daltonismo, y este tampoco. Es aceptable porque **nunca van solos**: siempre llevan
+  flecha ▲▼ y el número con signo, que es la codificación secundaria exigida.
+- **Reto:** 1.
+- **Estado:** validado con herramienta.
+
+### [2026-11-14] La tabla de rotura muestra las cifras de las tallas afectadas
+- **Contexto:** la primera versión mezclaba el stock del modelo entero con el déficit
+  de las tallas en rotura, así que el lector no podía comprobar la resta.
+- **Decisión:** se muestran `stock en esas tallas`, `en camino a esas tallas` y
+  `demanda 4 sem` de las tallas afectadas, de modo que
+  `déficit = demanda − stock − en camino` cuadra a la vista. El stock del modelo se
+  mantiene en una columna aparte, precisamente porque es el número que engaña.
+- **Reto:** 1.
+- **Estado:** confirmado.

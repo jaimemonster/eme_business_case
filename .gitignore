@@ -51,3 +51,6 @@ htmlcov/
 
 # --- Ficheros temporales de Excel ---
 ~$*.xlsx
+
+# --- Salidas generadas (reproducibles con los pipelines) ---
+output/reto1/*.html
