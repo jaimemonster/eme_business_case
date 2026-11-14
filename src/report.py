@@ -28,6 +28,21 @@ def tabla_html(df: pd.DataFrame, titulo: str) -> str:
     raise NotImplementedError
 
 
+def seccion_decisiones(reto: str) -> str:
+    """Renderiza la sección "Decisiones y supuestos" del informe a partir de
+    docs/decisiones.md, filtrando las entradas que afectan al reto indicado.
+
+    Nunca se escribe a mano: la fuente de verdad es el log de decisiones.
+    """
+    raise NotImplementedError
+
+
+def seccion_calidad_datos() -> str:
+    """Renderiza el resumen de calidad de datos a partir de
+    docs/notas_calidad_datos.md: qué se encontró, qué se corrigió y qué no."""
+    raise NotImplementedError
+
+
 def construir_informe(metricas: Dict[str, pd.DataFrame], destino: Path) -> Path:
     """Ensambla el informe completo y lo escribe en `destino`. Devuelve la ruta."""
     raise NotImplementedError

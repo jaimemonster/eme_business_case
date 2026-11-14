@@ -8,12 +8,13 @@ documentación siguen las convenciones descritas aquí.
 ## Contexto
 
 - Marca de moda. Datos **ficticios** de actividad del **2024-01-01 al 2025-11-09**.
-- Fuente única: `data/raw/EME_Caso_Practico_Datos.xlsx`, con cuatro pestañas:
+- Fuente única: `data/raw/EME_Caso_Practico_Datos.xlsx`, con una pestaña `LEEME`
+  (documentación del propio caso) y cuatro pestañas de datos:
 
   | Pestaña    | Contenido                                                                      |
   |------------|--------------------------------------------------------------------------------|
   | `VENTAS`   | Líneas de pedido: fecha, pedido, SKU, mercado, unidades, precio, descuento, etiquetas |
-  | `PRODUCTO` | Catálogo: SKU, modelo, color, talla, sección, categoría, drop, coste, PVP        |
+  | `PRODUCTO` | Catálogo: SKU, producto, color, talla, sección, categoría, **subcategoría**, drop, coste, PVP |
   | `STOCK`    | Stock disponible por SKU en almacén a fecha de cierre                            |
   | `COMPRAS`  | Pedidos a proveedor: SKU, unidades, proveedor, fecha estimada y fecha real de llegada |
 
@@ -44,10 +45,13 @@ documentación siguen las convenciones descritas aquí.
    sell-through, demanda prevista…). Se conservan marcados en una tabla aparte por si
    hacen falta para consumo de stock.
 2. **`special` = precio especial.** Los pedidos con la etiqueta `special` se vendieron
-   a precio rebajado. Se marcan con el flag booleano **`is_special`** y se analizan
+   a precio rebajado. La etiqueta aparece en **variantes** (`special`, `SPECIAL XX`…),
+   así que se normaliza antes de comparar. Se marcan con el flag booleano
+   **`is_special`** y se analizan
    **aparte** del precio completo (nunca se mezclan en los KPIs de precio/margen sin
    decir explícitamente que están incluidos).
-3. **Llegada de compras.** Se usa la **fecha real si existe** y, si no, la **estimada**.
+3. **Llegada de compras.** Se usa la **fecha real si existe** y, si no, la **estimada**
+   (fecha real vacía = pendiente de llegar o sin confirmar).
    El resultado se materializa en la columna **`fecha_llegada_efectiva`**, junto con
    `origen_fecha_llegada` (`real` | `estimada`) para poder medir la fiabilidad del proveedor.
 4. **Modelo = producto + color.** Cada talla es un SKU distinto. Se crea la clave
@@ -80,9 +84,14 @@ mismos días de la semana.
 > Si los datos contradicen alguno de estos supuestos, **avisar antes de cambiarlo**
 > y registrar la decisión en `docs/decisiones.md`.
 
-- **Facturación neta** = `unidades × precio − descuento`.
-  A confirmar: si el descuento es **importe o porcentaje**, si es **por línea o por
-  unidad**, y si los precios llevan **IVA**.
+- **Facturación neta** = `unidades × pvp_unitario − descuento`.
+  **Confirmado por la pestaña `LEEME`**: el importe bruto es `unidades × PVP` y el
+  descuento viene **en euros** (importe por línea, no porcentaje ni por unidad).
+  Sigue **pendiente** saber si los precios llevan **IVA**; se asume que **no** hasta
+  que se diga lo contrario.
+  Ojo: `VENTAS` trae su propio `PVP unitario (€)` y `PRODUCTO` trae otro `PVP (€)`.
+  Manda el de la línea de venta (precio al que se vendió de verdad); la discrepancia
+  entre ambos se mide y se reporta en las notas de calidad.
 - **Margen** = `facturación neta − unidades × coste`.
   **Margen %** = `margen / facturación neta`.
 - **Sell-through** = `unidades vendidas / (unidades vendidas + stock actual)`,
@@ -108,6 +117,23 @@ mismos días de la semana.
 - Código y **nombres de columnas en `snake_case`**. Comentarios y documentación **en español**.
 - Las salidas (`output/`, `data/interim`, `data/processed`) son **reproducibles**: se
   regeneran ejecutando los pipelines, no se editan a mano.
+
+## Trazabilidad en los entregables (OBLIGATORIO)
+
+**Cada entregable incluye una sección final de "Decisiones y supuestos"** con las
+decisiones tomadas en ese reto: qué se decidió, por qué, y qué impacto tiene en las
+cifras que el lector acaba de ver. El objetivo es que nadie tenga que fiarse de un
+número sin saber cómo se ha construido.
+
+- El informe HTML del Reto 1 lleva una sección **"Decisiones y supuestos"** y otra de
+  **"Calidad de los datos"** (resumen de lo que se arregló y lo que no).
+- La propuesta de reposición del Reto 2 lleva una **hoja/pestaña de decisiones** con
+  los parámetros usados y la lógica del cálculo.
+- La hoja de ruta del Reto 3 cierra con los **supuestos** sobre los que se ha priorizado.
+
+La fuente de verdad es `docs/decisiones.md`: las secciones de los entregables se
+construyen **a partir de ese fichero**, filtrando por reto, no escribiéndolas a mano.
+Por eso cada entrada de `decisiones.md` debe indicar a qué reto afecta.
 
 ## Cómo ejecutar
 

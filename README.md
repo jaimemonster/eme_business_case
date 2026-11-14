@@ -30,7 +30,7 @@ Las reglas de negocio, los parámetros y las definiciones de KPIs están en
 │   └── processed/            # Tablas de métricas listas para informe · generadas
 ├── src/
 │   ├── config.py             # Rutas, fechas de corte y parámetros de negocio
-│   ├── io.py                 # Carga del Excel y guardado/lectura de tablas
+│   ├── storage.py            # Carga del Excel y guardado/lectura de tablas
 │   ├── profiling.py          # Perfilado de calidad de datos
 │   ├── clean.py              # Limpieza + reglas de negocio (único sitio donde se aplican)
 │   ├── metrics.py            # KPIs del Reto 1

@@ -23,7 +23,10 @@ DIR_OUTPUT: Path = RAIZ_PROYECTO / "output"
 DIR_DOCS: Path = RAIZ_PROYECTO / "docs"
 
 FICHERO_EXCEL: Path = DIR_RAW / "EME_Caso_Practico_Datos.xlsx"
+# El Excel incluye además una pestaña `LEEME` con documentación del caso, que no es
+# un dato a procesar.
 PESTANAS: tuple[str, ...] = ("VENTAS", "PRODUCTO", "STOCK", "COMPRAS")
+PESTANA_DOC: str = "LEEME"
 
 # --- Fechas de análisis (semanas ISO, lunes a domingo) ---------------------
 SEMANA_ACTUAL: tuple[dt.date, dt.date] = (dt.date(2025, 11, 3), dt.date(2025, 11, 9))
