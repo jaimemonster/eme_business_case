@@ -25,6 +25,12 @@ def _orden_talla(talla: str) -> int:
     return ORDEN_TALLAS.get(talla, 99)
 
 
+# Un modelo con menos de estas semanas en venta no tiene histórico suficiente
+# para comparar su ritmo actual con su media del año: la media sería casi el
+# mismo dato.
+SEMANAS_MINIMAS_PARA_COMPARAR = 8
+
+
 # Un modelo se considera con exceso de stock si su cobertura supera el doble de
 # la cobertura objetivo. Umbral documentado en CLAUDE.md y revisable.
 UMBRAL_EXCESO_SEMANAS = 2 * config.COBERTURA_OBJETIVO_SEMANAS
@@ -223,7 +229,28 @@ def ranking_modelos(
 
     agregado = agregado.merge(
         st[["unidades_vendidas", "stock_actual", "sell_through_pct"]], on="modelo_id", how="left"
-    ).sort_values("uds_semana_media", ascending=False)
+    )
+
+    # Contexto del año en curso. No sirve para ordenar —penaliza a los drops
+    # recientes, que llevan pocas semanas a la venta— pero sí para saber si el
+    # ritmo actual del modelo es el suyo de siempre o se ha movido.
+    inicio_ano = pd.Timestamp(year=fin.year, month=1, day=1)
+    ano = ventas[(ventas["fecha"] >= inicio_ano) & (ventas["fecha"] <= fin)]
+    por_modelo_ano = ano.groupby("modelo_id").agg(
+        uds_ano=("unidades", "sum"),
+        primera_venta_ano=("fecha", "min"),
+    )
+    semanas_a_la_venta = ((fin - por_modelo_ano["primera_venta_ano"]).dt.days // 7 + 1).clip(lower=1)
+    por_modelo_ano["semanas_a_la_venta"] = semanas_a_la_venta
+    por_modelo_ano["ritmo_ano"] = (por_modelo_ano["uds_ano"] / semanas_a_la_venta).round(1)
+
+    agregado = agregado.merge(por_modelo_ano, on="modelo_id", how="left")
+    agregado["es_nuevo"] = agregado["semanas_a_la_venta"] < SEMANAS_MINIMAS_PARA_COMPARAR
+    agregado["indice_ritmo"] = (
+        (agregado["uds_semana_media"] / agregado["ritmo_ano"]).where(~agregado["es_nuevo"]).round(2)
+    )
+
+    agregado = agregado.sort_values("uds_semana_media", ascending=False)
 
     # Los modelos sin ninguna venta en la ventana no están en el agregado: hay
     # que añadirlos aparte para que el "bottom" no mienta por omisión.

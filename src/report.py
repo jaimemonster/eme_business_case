@@ -123,6 +123,15 @@ def registrar(div_id: str, grupos: Sequence[int], ejes: Sequence[dict]) -> str:
     )
 
 
+def _indice(valor) -> str:
+    """Multiplicador de ritmo. Un modelo recién lanzado no tiene con qué compararse."""
+    if pd.isna(valor):
+        return '<span style="color:var(--tinta-3)">nuevo</span>'
+    clase = "pos" if valor >= 1 else "neg"
+    flecha = "▲" if valor >= 1 else "▼"
+    return f'<span class="{clase}">{flecha} ×{num(valor, 2)}</span>'
+
+
 def tabla_html(
     df: pd.DataFrame,
     columnas: Sequence[tuple[str, str, str]],
@@ -152,6 +161,7 @@ def tabla_html(
                     "pct": lambda v: pct(v),
                     "delta": delta,
                     "crudo": str,
+                    "indice": _indice,
                 }[formato]
                 celdas.append(f'<td class="num">{render(valor)}</td>')
         clase = ' class="destacar"' if i in destacar else ""
@@ -747,8 +757,8 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         ("categoria", "Categoría", "texto"),
         ("uds_semana_media", "Uds/semana", "num1"),
         ("unidades_semana", "Esta semana", "num"),
-        ("facturacion_semana_media", "Facturación/semana", "eur"),
-        ("stock_actual", "Stock", "num"),
+        ("uds_ano", "Uds en el año", "num"),
+        ("indice_ritmo", "Ritmo vs. su año", "indice"),
         ("sell_through_pct", "Sell-through", "pct"),
     ]
     t_sin = tabla_html(m["ranking_sin_venta_en_la_semana"], [
@@ -766,10 +776,14 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         for _, r in conc.iterrows()
     )
     nota_ventana = (
-        f'<p class="nota" style="margin-bottom:14px">El ranking va por <strong>media de las últimas '
-        f'{int(ventana["semanas"])} semanas</strong> ({desde:%d/%m} – {hasta:%d/%m}), no por la semana suelta: '
-        f'con 123 modelos, una semana sola es ruido. La columna «esta semana» está al lado para ver quién se '
-        f'sale de su propio ritmo. El sell-through es histórico del modelo.</p>'
+        f'<p class="nota" style="margin-bottom:14px">Ordenado por <strong>ritmo de las últimas '
+        f'{int(ventana["semanas"])} semanas</strong> ({desde:%d/%m} – {hasta:%d/%m}). No por la semana suelta, '
+        f'que con 123 modelos es ruido, ni por el acumulado del año, que penaliza a los drops recientes: '
+        f'<strong>el modelo que más vende ahora lleva solo 5 semanas a la venta y en el acumulado sería el '
+        f'25.º</strong>.<br>'
+        f'«Ritmo vs. su año» compara el ritmo actual con el que ha llevado ese modelo durante 2025: por encima '
+        f'de ×1 acelera, por debajo se desinfla. Los modelos con menos de ocho semanas a la venta no tienen '
+        f'histórico con el que compararse.</p>'
     )
     cuerpo = f"""
 <div class="card"><h3>Los 10 que más venden</h3>
@@ -975,13 +989,19 @@ def _seccion_glosario() -> str:
             "Por encima del 70 % funciona; por debajo del 30 % es candidato a rebaja.",
         ),
         termino(
-            "Uds/semana",
-            "El ritmo de venta de un modelo: unidades vendidas en las últimas cuatro semanas dividido "
-            "entre cuatro. Es la cifra con la que se ordenan los rankings, y la misma que alimenta la "
-            "previsión de demanda y las alertas de stock.",
-            "uds/semana  =  unidades de las últimas 4 semanas / 4",
-            "Se usa la media y no la semana suelta porque con 123 modelos una sola semana es ruido: "
-            "un buen modelo con una mala semana aparecería en la cola del ranking.",
+            "Uds/semana y ritmo vs. su año",
+            "<strong>Uds/semana</strong> es el ritmo de venta de un modelo: lo vendido en las últimas cuatro "
+            "semanas dividido entre cuatro. Ordena los rankings y es la misma cifra que alimenta la previsión "
+            "de demanda y las alertas de stock.<br>"
+            "<strong>Ritmo vs. su año</strong> compara ese ritmo con el que ha llevado el modelo en lo que va "
+            "de año, contando solo desde su primera venta. Por encima de ×1 acelera; por debajo, se desinfla.",
+            "uds/semana        =  unidades de las últimas 4 semanas / 4\n"
+            "ritmo del año     =  unidades del año / semanas a la venta\n"
+            "ritmo vs. su año  =  uds/semana ÷ ritmo del año",
+            "Ni la semana suelta ni el acumulado del año sirven para ordenar: la primera es ruido con 123 "
+            "modelos, y el segundo penaliza a los drops recientes. El modelo que más vende hoy lleva cinco "
+            "semanas a la venta y en el acumulado del año sería el 25.º. Los modelos con menos de ocho semanas "
+            "a la venta no tienen histórico con el que compararse y aparecen como «nuevo».",
         ),
         termino(
             "Cobertura",

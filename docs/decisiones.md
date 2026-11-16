@@ -422,3 +422,26 @@
   de 14 modelos a **1**. En una semana no vender es normal; en cuatro, no.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] El ranking de modelos se ordena por ritmo reciente, con el año como contexto
+- **Contexto:** la pregunta 3 pide «los 10 modelos que más y que menos venden». Había
+  tres candidatos para medirlo y se compararon con los datos.
+- **Descartado, la semana suelta:** con 509 unidades repartidas entre 123 modelos, el
+  décimo y el trigésimo se diferencian en dos unidades.
+- **Descartado, el acumulado del año:** penaliza sistemáticamente a los drops
+  recientes. **28 de los 123 modelos llevan ocho semanas o menos a la venta y ninguno
+  puede entrar en el top 10 del año.** El modelo que más vende ahora mismo,
+  `NOVA BOMBER BROWN` con 27 uds/semana, lleva 5 semanas y en el acumulado sería el
+  **25.º**. En una marca que lanza seis drops al año, ordenar por acumulado es ordenar
+  por antigüedad.
+- **Decisión:** ordenar por el **ritmo de las últimas 4 semanas**, la misma ventana
+  que la previsión de demanda. El año entra como **contexto**, no como orden: unidades
+  acumuladas y un índice «ritmo actual ÷ ritmo medio del modelo en el año», que es lo
+  que de verdad responde si un modelo tira o se desinfla.
+- **Salvaguarda:** el índice solo se calcula con ocho o más semanas a la venta. Por
+  debajo, la media del año y el ritmo reciente son casi el mismo dato y el índice
+  daría ×1 sin significar nada; esos modelos se marcan como «nuevo».
+- **Lo que destapa:** `NEON CREWNECK NAVY` es top 10 del año y va a ×0,63;
+  `BLAZE BOMBER GREY MELANGE` lleva 70 uds en el año y va a ×0,12. Vendieron, ya no.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.
