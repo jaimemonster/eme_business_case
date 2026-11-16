@@ -376,3 +376,18 @@
   incluye las ventas con cupón.
 - **Reto:** 1.
 - **Estado:** aclarado a raíz de la pregunta del usuario; no cambia ningún cálculo.
+
+### [2026-11-16] «Precio medio por unidad» pasa a llamarse «facturación por unidad»
+- **Contexto:** el nombre sugería precio de venta, y no lo es: se calcula como
+  `facturación neta ÷ unidades`, así que ya va neto de descuentos y además mezcla
+  el reparto de producto. Un cambio en esa cifra puede no tener nada que ver con los
+  precios.
+- **Decisión:** renombrarlo a **facturación por unidad** y acompañarlo de la
+  descomposición entre efecto precio y efecto mezcla, recalculando el periodo actual
+  con el reparto por categoría del periodo de referencia.
+- **Hallazgo:** el +11,6 % interanual **no es subida de precios**. Con la mezcla de
+  2024 la cifra habría *bajado* un 5,5 %. Lo que ha cambiado es qué se vende: la
+  chaqueta pasa del 10,8 % al 29,7 % de las unidades y es la categoría más cara
+  (116 € de media frente a 32 € de una camiseta). Es noviembre.
+- **Reto:** 1.
+- **Estado:** aclarado a raíz de la pregunta del usuario.

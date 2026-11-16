@@ -612,6 +612,10 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 
     crec = m["crecimiento"]
     var = crec[crec["periodo"] == "variacion_pct"].iloc[0]
+    mezcla = m["efecto_mezcla"].iloc[0]
+    reparto = m["reparto_categoria_interanual"]
+    chaqueta = reparto[reparto["categoria"] == "CHAQUETA"].iloc[0]
+    chaqueta_ly, chaqueta_hoy = chaqueta["pct_referencia"], chaqueta["pct_actual"]
     desglose = f"""
 <div class="grid g3" style="margin-top:20px">
   <div class="card"><div class="dato">{delta(var['pedidos'])}</div>
@@ -619,8 +623,15 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
   <div class="card"><div class="dato">{delta(var['uds_por_pedido'])}</div>
     <div class="dato-lbl">Unidades por pedido — {num(crec.iloc[0]['uds_por_pedido'], 2)} frente a {num(crec.iloc[1]['uds_por_pedido'], 2)}</div></div>
   <div class="card"><div class="dato">{delta(var['precio_medio_ud'])}</div>
-    <div class="dato-lbl">Precio medio por unidad — {eur(crec.iloc[0]['precio_medio_ud'], 2)}</div></div>
-</div>"""
+    <div class="dato-lbl">Facturación por unidad — {eur(crec.iloc[0]['precio_medio_ud'], 2)}
+    frente a {eur(crec.iloc[1]['precio_medio_ud'], 2)}</div></div>
+</div>
+<p class="nota" style="max-width:70ch">La facturación por unidad es
+<code>facturación neta ÷ unidades</code>: lo que deja de media cada prenda vendida, ya descontados los
+cupones. Sube un {num(var['precio_medio_ud'], 1)}&nbsp;%, pero <strong>no porque se venda más caro</strong>:
+con la mezcla de producto del año pasado habría <em>bajado</em> un {num(abs(mezcla['efecto_precio_pct']), 1)}&nbsp;%.
+La subida es mezcla: la chaqueta pasa del {num(chaqueta_ly, 1)}&nbsp;% al {num(chaqueta_hoy, 1)}&nbsp;% de las
+unidades y es la categoría más cara.</p>"""
 
     div_id = "g-evolucion"
     evol = m["evolucion_semanal"]
@@ -1356,8 +1367,6 @@ const PAGINA_INICIAL = "{PAGINA_INICIAL}";
       <div class="marca">EME Studios</div>
       <p class="sidebar-titulo">Caso práctico<br>AI Specialist</p>
       <p class="sidebar-sub">Semana del {ini.day} al {fecha_larga(fin)}<br>Datos a cierre del {config.FECHA_CORTE_DATOS:%d/%m/%Y}</p>
-      <p class="sidebar-aviso">Todas las cifras excluyen las ventas a precio especial y los regalos a
-      influencers. El precio especial se analiza aparte, en la pregunta&nbsp;2.</p>
     </div>
     <nav>{_menu_lateral()}</nav>
   </aside>

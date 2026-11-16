@@ -414,6 +414,10 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
             "estacionalidad_especial": estacionalidad_precio_especial(ventas),
             "curva_tallas": curva_tallas(tarifa, stock),
             "margen_cupon": margen_del_cupon(tarifa, semana),
+            "efecto_mezcla": efecto_mezcla(tarifa, semana, config.SEMANA_ANO_ANTERIOR),
+            "reparto_categoria_interanual": reparto_categoria_interanual(
+                tarifa, semana, config.SEMANA_ANO_ANTERIOR
+            ),
             "fiabilidad_proveedores": fiabilidad_proveedores(compras),
             "sell_through_drop": sell_through_por_drop(ventas, stock, producto),
             "crecimiento": descomposicion_crecimiento(tarifa, semana, config.SEMANA_ANO_ANTERIOR),
@@ -493,6 +497,53 @@ def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
     g["uds_completo"] = g["uds_total"] - g["uds_especial"]
     g["eur_completo"] = g["eur_total"] - g["eur_especial"]
     return g
+
+
+def efecto_mezcla(ventas: pd.DataFrame, actual: Periodo, referencia: Periodo) -> pd.DataFrame:
+    """Separa cuánto del cambio en el precio medio por unidad es mezcla de producto.
+
+    El precio medio por unidad sube tanto si se sube el precio como si se vende
+    más producto caro. Para distinguirlo se recalcula el precio medio del periodo
+    actual aplicando el **reparto por categoría del periodo de referencia**: lo
+    que quede de diferencia es precio; el resto, mezcla.
+    """
+    hoy, antes = _filtrar_periodo(ventas, actual), _filtrar_periodo(ventas, referencia)
+    if not len(hoy) or not len(antes):
+        return pd.DataFrame()
+
+    real_hoy = hoy["facturacion_neta"].sum() / hoy["unidades"].sum()
+    real_antes = antes["facturacion_neta"].sum() / antes["unidades"].sum()
+
+    precio_hoy = hoy.groupby("categoria").apply(
+        lambda x: x["facturacion_neta"].sum() / x["unidades"].sum(), include_groups=False
+    )
+    reparto_antes = antes.groupby("categoria")["unidades"].sum()
+    reparto_antes = reparto_antes / reparto_antes.sum()
+    # Precio medio de hoy si se hubiese vendido la mezcla de entonces.
+    con_mezcla_antigua = (reparto_antes * precio_hoy).dropna().sum()
+
+    return pd.DataFrame([{
+        "precio_medio_actual": round(real_hoy, 2),
+        "precio_medio_referencia": round(real_antes, 2),
+        "precio_medio_con_mezcla_antigua": round(con_mezcla_antigua, 2),
+        "efecto_precio_pct": round(100 * (con_mezcla_antigua - real_antes) / real_antes, 1),
+        "efecto_mezcla_pct": round(100 * (real_hoy - con_mezcla_antigua) / real_antes, 1),
+    }])
+
+
+def reparto_categoria_interanual(
+    ventas: pd.DataFrame, actual: Periodo, referencia: Periodo
+) -> pd.DataFrame:
+    """Peso de cada categoría sobre las unidades, en ambos periodos.
+
+    Es la evidencia del efecto mezcla: enseña qué se ha movido.
+    """
+    def peso(periodo: Periodo) -> pd.Series:
+        uds = _filtrar_periodo(ventas, periodo).groupby("categoria")["unidades"].sum()
+        return (100 * uds / uds.sum()).round(1)
+
+    df = pd.concat([peso(actual).rename("pct_actual"), peso(referencia).rename("pct_referencia")], axis=1)
+    return df.fillna(0).reset_index().sort_values("pct_actual", ascending=False)
 
 
 def margen_del_cupon(ventas: pd.DataFrame, semana: Periodo) -> pd.DataFrame:
