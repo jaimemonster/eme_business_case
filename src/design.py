@@ -190,40 +190,74 @@ body {{
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }}
-.wrap {{ max-width: var(--ancho); margin: 0 auto; padding-block: 0 96px; padding-left: 24px; padding-right: 24px; }}
+
 
 /* --- Cabecera --- */
-header.top {{ padding-block: 72px 28px; }}
+header.top {{ padding-block: 0 32px; }}
 .marca {{
   font-size: 12px; font-weight: 600; letter-spacing: 0.22em;
   text-transform: uppercase; color: var(--tinta-3); margin-bottom: 20px;
 }}
-h1 {{ font-size: 52px; font-weight: 600; letter-spacing: -0.025em; margin: 0 0 12px; line-height: 1.08; }}
+h1 {{ font-size: 40px; font-weight: 600; letter-spacing: -0.025em; margin: 0 0 12px; line-height: 1.08; }}
 .subtitulo {{ font-size: 20px; color: var(--tinta-2); margin: 0; font-weight: 400; }}
 
-/* --- Navegación --- */
-nav.indice {{
-  position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--plano) 86%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid var(--linea);
-  margin-bottom: 40px;
+/* --- Layout: sidebar fija + panel de contenido --- */
+.layout {{ display: grid; grid-template-columns: 258px minmax(0, 1fr); align-items: start; }}
+.sidebar {{
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  border-right: 1px solid var(--linea); padding: 36px 20px 32px;
+  background: var(--plano);
 }}
-nav.indice ul {{
-  max-width: var(--ancho); margin: 0 auto; padding: 0 24px;
-  list-style: none; display: flex; gap: 28px; overflow-x: auto;
-  scrollbar-width: none; -ms-overflow-style: none;
+.sidebar .marca {{ margin-bottom: 6px; }}
+.sidebar-titulo {{
+  font-size: 19px; font-weight: 600; letter-spacing: -0.015em;
+  line-height: 1.25; margin: 0 0 4px;
 }}
-nav.indice ul::-webkit-scrollbar {{ display: none; }}
-nav.indice a {{
-  display: block; padding: 14px 0; color: var(--tinta-2);
-  text-decoration: none; font-size: 14px; white-space: nowrap;
-  border-bottom: 2px solid transparent;
+.sidebar-sub {{ font-size: 12px; color: var(--tinta-3); margin: 0 0 26px; line-height: 1.4; }}
+.nav-grupo {{
+  font-size: 11px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--tinta-3); margin: 24px 0 8px; padding-left: 12px;
 }}
-nav.indice a:hover {{ color: var(--tinta); border-bottom-color: var(--acento); }}
+.nav-item {{
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; margin-bottom: 2px; border-radius: 9px;
+  color: var(--tinta-2); text-decoration: none; font-size: 14px;
+  border: none; background: none; width: 100%; text-align: left;
+  font-family: inherit; cursor: pointer; line-height: 1.35;
+}}
+.nav-item:hover {{ background: var(--acento-suave); color: var(--tinta); }}
+.nav-item.activo {{ background: var(--acento-suave); color: var(--acento); font-weight: 600; }}
+.nav-item.pendiente {{ color: var(--tinta-3); cursor: default; opacity: 0.65; }}
+.nav-item.pendiente:hover {{ background: none; color: var(--tinta-3); }}
+.nav-badge {{
+  margin-left: auto; flex-shrink: 0; align-self: center; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--tinta-3); border: 1px solid var(--linea); border-radius: 20px; padding: 2px 7px;
+}}
+
+.contenido {{ padding: 56px 44px 96px; max-width: 1040px; min-width: 0; }}
+.panel {{ display: none; }}
+.panel.activo {{ display: block; }}
+
+/* Cabecera de página: dónde estoy y qué es esto */
+.pag-cabecera {{ margin-bottom: 36px; }}
+.pag-ruta {{ font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--acento); margin-bottom: 10px; }}
+
+/* Pie de página: ir a la siguiente */
+.siguiente {{
+  display: inline-flex; align-items: center; gap: 10px; margin-top: 8px;
+  padding: 14px 20px; border: 1px solid var(--linea); border-radius: 12px;
+  background: var(--superficie); color: var(--tinta); text-decoration: none;
+  font-size: 15px; font-family: inherit; cursor: pointer;
+}}
+.siguiente:hover {{ border-color: var(--acento); color: var(--acento); }}
+.siguiente .flecha {{ color: var(--acento); }}
+
+/* Barra superior, solo en móvil */
+.topbar {{ display: none; }}
 
 /* --- Secciones --- */
-section {{ margin-bottom: 72px; scroll-margin-top: 72px; }}
+section {{ margin-bottom: 64px; }}
+section:last-of-type {{ margin-bottom: 32px; }}
 .sec-num {{ font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--acento); margin-bottom: 10px; }}
 h2 {{ font-size: 34px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 14px; line-height: 1.15; }}
 h3 {{ font-size: 20px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }}
@@ -260,12 +294,12 @@ p {{ color: var(--tinta-2); max-width: 70ch; }}
 .kpi-tit {{ font-size: 13px; color: var(--tinta-3); margin-bottom: 10px; }}
 .kpi-val {{ font-size: 40px; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 14px; }}
 .kpi-deltas {{ display: flex; flex-direction: column; gap: 4px; }}
-.kpi-delta {{ display: flex; align-items: baseline; gap: 8px; font-size: 13px; }}
+.kpi-delta {{ display: flex; align-items: baseline; gap: 7px; font-size: 12px; }}
 .kpi-delta .pos, .kpi-delta .neg {{ white-space: nowrap; }}
 .kpi-delta-lbl {{ min-width: 0; }}
 .kpi-delta .pos {{ color: var(--positivo); font-weight: 600; }}
 .kpi-delta .neg {{ color: var(--negativo); font-weight: 600; }}
-.kpi-delta-lbl {{ color: var(--tinta-3); }}
+.kpi-delta-lbl {{ color: var(--tinta-3); white-space: nowrap; }}
 
 /* --- Cifra destacada dentro de una tarjeta --- */
 .dato {{ font-size: 32px; letter-spacing: -0.02em; line-height: 1.1; }}
@@ -280,8 +314,11 @@ th {{
   text-transform: uppercase; color: var(--tinta-3);
   padding: 0 14px 12px 0; border-bottom: 1px solid var(--linea); white-space: nowrap;
 }}
-td {{ padding: 12px 14px 12px 0; border-bottom: 1px solid var(--linea); color: var(--tinta-2); }}
-td:first-child {{ color: var(--tinta); }}
+td {{ padding: 12px 14px 12px 0; border-bottom: 1px solid var(--linea); color: var(--tinta-2); white-space: nowrap; }}
+/* La primera columna lleva nombres largos: se le da espacio para que no se
+   parta en cuatro líneas, y es la única que puede envolver. */
+td:first-child {{ color: var(--tinta); white-space: normal; min-width: 170px; }}
+th:first-child {{ min-width: 170px; }}
 tr:last-child td {{ border-bottom: none; }}
 .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
 .pos {{ color: var(--positivo); }}
@@ -354,6 +391,30 @@ footer {{
 }}
 .tema:hover {{ color: var(--tinta); }}
 
+@media (max-width: 1000px) {{
+  .layout {{ grid-template-columns: 1fr; }}
+  .topbar {{
+    display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 40;
+    padding: 12px 16px; border-bottom: 1px solid var(--linea);
+    background: color-mix(in srgb, var(--plano) 88%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+  }}
+  .topbar .marca {{ margin: 0; }}
+  .topbar-actual {{ font-size: 14px; font-weight: 600; margin-left: auto; color: var(--tinta-2); }}
+  .boton-menu {{
+    border: 1px solid var(--linea); background: var(--superficie); color: var(--tinta);
+    border-radius: 9px; padding: 7px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
+  }}
+  .sidebar {{
+    position: static; height: auto; border-right: none;
+    border-bottom: 1px solid var(--linea); padding: 8px 16px 20px;
+    display: none;
+  }}
+  .sidebar.abierta {{ display: block; }}
+  .sidebar .cabecera-lateral {{ display: none; }}
+  .contenido {{ padding: 32px 16px 72px; }}
+}}
 @media (max-width: 860px) {{
   .g4 {{ grid-template-columns: repeat(2, 1fr); }}
   .g3, .g2 {{ grid-template-columns: 1fr; }}
@@ -369,7 +430,9 @@ footer {{
   .g4 {{ grid-template-columns: 1fr; }}
 }}
 @media print {{
-  nav.indice, .tema {{ display: none; }}
+  .sidebar, .tema, .topbar, .siguiente {{ display: none !important; }}
+  .panel {{ display: block !important; break-before: page; }}
+  .layout {{ grid-template-columns: 1fr; }}
   details {{ break-inside: avoid; }}
   details > div {{ display: block !important; }}
 }}
@@ -432,6 +495,49 @@ function repintar() {{
   }});
 }}
 
+/* --- Navegación por páginas --------------------------------------------
+   Los paneles están todos en el DOM pero solo uno es visible. Un gráfico de
+   Plotly dibujado dentro de un contenedor oculto no conoce su ancho, así que
+   al mostrar un panel hay que redimensionar los suyos. */
+
+function graficosDe(panel) {{
+  return panel ? panel.querySelectorAll(".js-plotly-plot") : [];
+}}
+
+function mostrar(id, empujarHistorial = true) {{
+  const panel = document.getElementById("pag-" + id);
+  if (!panel) return;
+
+  document.querySelectorAll(".panel").forEach((p) => p.classList.remove("activo"));
+  panel.classList.add("activo");
+
+  document.querySelectorAll(".nav-item").forEach((a) => {{
+    a.classList.toggle("activo", a.dataset.pagina === id);
+  }});
+
+  const actual = document.querySelector(`.nav-item[data-pagina="${{id}}"]`);
+  const rotulo = document.querySelector(".topbar-actual");
+  if (actual && rotulo) rotulo.textContent = actual.dataset.etiqueta || actual.textContent.trim();
+
+  graficosDe(panel).forEach((g) => Plotly.Plots.resize(g));
+  document.querySelector(".sidebar").classList.remove("abierta");
+  window.scrollTo({{ top: 0, behavior: "instant" }});
+  if (empujarHistorial && location.hash !== "#" + id) history.pushState({{ id }}, "", "#" + id);
+}}
+
+function alternarMenu() {{
+  document.querySelector(".sidebar").classList.toggle("abierta");
+}}
+
+window.addEventListener("popstate", () => {{
+  mostrar((location.hash || "").replace("#", "") || PAGINA_INICIAL, false);
+}});
+
+window.addEventListener("resize", () => {{
+  const activo = document.querySelector(".panel.activo");
+  graficosDe(activo).forEach((g) => Plotly.Plots.resize(g));
+}});
+
 function alternarTema() {{
   const nuevo = esOscuro() ? "claro" : "oscuro";
   document.documentElement.setAttribute("data-theme", nuevo);
@@ -441,6 +547,7 @@ function alternarTema() {{
 
 window.addEventListener("load", () => {{
   if (esOscuro()) repintar();
+  mostrar((location.hash || "").replace("#", "") || PAGINA_INICIAL, false);
   document.querySelector(".tema").textContent = esOscuro() ? "Tema claro" : "Tema oscuro";
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {{
     if (!document.documentElement.dataset.theme) repintar();

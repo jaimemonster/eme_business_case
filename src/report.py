@@ -123,15 +123,18 @@ def tabla_html(
     )
 
 
-def seccion(num_sec: str, titulo: str, ancla: str, conclusion: str, cuerpo: str) -> str:
-    """Una sección del informe. Siempre empieza por la conclusión, no por el gráfico."""
-    return f"""
-<section id="{ancla}">
-  <div class="sec-num">{num_sec}</div>
-  <h2>{titulo}</h2>
-  <p class="conclusion">{conclusion}</p>
-  {cuerpo}
-</section>"""
+def seccion(ruta: str, titulo: str, pid: str, conclusion: str, cuerpo: str) -> Dict[str, str]:
+    """Una página del informe. Siempre empieza por la conclusión, no por el gráfico.
+
+    Devuelve los metadatos que `construir_informe` necesita para montar el panel
+    y su entrada en el menú lateral.
+    """
+    return {
+        "id": pid,
+        "ruta": ruta,
+        "titulo": titulo,
+        "html": f'<p class="conclusion">{conclusion}</p>{cuerpo}',
+    }
 
 
 def bloque_decision_plegable(
@@ -456,16 +459,16 @@ def _hero(comparativa: pd.DataFrame) -> str:
     f = comparativa.iloc[0]
     tarjetas = [
         kpi("Unidades vendidas", f["unidades"], "uds", [
-            ("vs. semana anterior", f["unidades_vs_semana_anterior_pct"]),
-            ("vs. misma semana 2024", f["unidades_vs_ano_anterior_pct"]),
+            ("semana anterior", f["unidades_vs_semana_anterior_pct"]),
+            ("misma semana 2024", f["unidades_vs_ano_anterior_pct"]),
         ]),
         kpi("Facturación neta", f["facturacion_neta"], "€", [
-            ("vs. semana anterior", f["facturacion_neta_vs_semana_anterior_pct"]),
-            ("vs. misma semana 2024", f["facturacion_neta_vs_ano_anterior_pct"]),
+            ("semana anterior", f["facturacion_neta_vs_semana_anterior_pct"]),
+            ("misma semana 2024", f["facturacion_neta_vs_ano_anterior_pct"]),
         ]),
         kpi("Margen bruto", f["margen"], "€", [
-            ("vs. semana anterior", f["margen_vs_semana_anterior_pct"]),
-            ("vs. misma semana 2024", f["margen_vs_ano_anterior_pct"]),
+            ("semana anterior", f["margen_vs_semana_anterior_pct"]),
+            ("misma semana 2024", f["margen_vs_ano_anterior_pct"]),
         ]),
         kpi("Margen sobre ventas", f["margen_pct"], "%", []),
     ]
@@ -505,7 +508,7 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> str:
     <div class="dato-lbl">Precio medio por unidad — {eur(crec.iloc[0]['precio_medio_ud'], 2)}</div></div>
 </div>"""
     return seccion(
-        "Pregunta 1", "Cómo fue la semana", "semana",
+        "Reto 1 · Pregunta 1", "Cómo fue la semana", "semana",
         f"La semana cierra en <strong>{eur(f['facturacion_neta'])}</strong> y {num(f['unidades'])} unidades: "
         f"{delta(f['facturacion_neta_vs_semana_anterior_pct'])} frente a la semana anterior y "
         f"{delta(f['facturacion_neta_vs_ano_anterior_pct'])} frente a la misma semana de 2024. "
@@ -549,7 +552,7 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> str:
         ("pct_promocion", "Con WELCOME10", "pct"),
     ])
     return seccion(
-        "Pregunta 2", "Cómo se reparte, y qué se vendió rebajado", "reparto",
+        "Reto 1 · Pregunta 2", "Cómo se reparte, y qué se vendió rebajado", "reparto",
         f"España es la mitad del negocio ({pct(merc.iloc[0]['peso_pct'])}) y la chaqueta casi la mitad de la "
         f"facturación ({pct(cat.iloc[0]['peso_pct'])}). <strong>Esta semana no se ha vendido ni una unidad a precio "
         f"especial</strong>, pero no es una anomalía: el precio especial en EME es estacional, no continuo. Lo que sí "
@@ -601,7 +604,7 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> str:
         for _, r in conc.iterrows()
     )
     return seccion(
-        "Pregunta 3", "Qué modelos tiran y cuáles no", "modelos",
+        "Reto 1 · Pregunta 3", "Qué modelos tiran y cuáles no", "modelos",
         f"Las chaquetas y sudaderas <strong>NOVA</strong> y <strong>BLAZE</strong> copan nueve de los diez primeros "
         f"puestos. En la cola, modelos con una sola unidad vendida y sell-through por debajo del 30&nbsp;%: producto "
         f"que ocupa almacén y caja sin rotar. <strong>Dieciséis modelos, el 13&nbsp;% del catálogo, hacen la mitad "
@@ -635,9 +638,9 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> str:
     t_rot = tabla_html(rot.head(12), [
         ("modelo_nombre", "Modelo", "texto"),
         ("tallas_txt", "Tallas en rotura", "texto"),
-        ("stock_modelo", "Stock del modelo", "num"),
-        ("stock_tallas_rotura", "Stock en esas tallas", "num"),
-        ("en_camino_tallas_rotura", "En camino a esas tallas", "num"),
+        ("stock_modelo", "Stock modelo", "num"),
+        ("stock_tallas_rotura", "Stock tallas", "num"),
+        ("en_camino_tallas_rotura", "En camino", "num"),
         ("demanda_tallas_rotura", "Demanda 4 sem", "num1"),
         ("deficit_unidades", "Déficit", "num1"),
     ])
@@ -656,7 +659,7 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> str:
         ("pct_catalogo", "% del catálogo", "pct"),
     ], destacar=[2])
     return seccion(
-        "Pregunta 4", "Qué va a romper y qué sobra", "stock",
+        "Reto 1 · Pregunta 4", "Qué va a romper y qué sobra", "stock",
         f"El almacén tiene <strong>{num(cg['stock_total_uds'])} unidades</strong>, es decir "
         f"<strong>{num(cg['cobertura_global_semanas'], 1)} semanas de cobertura</strong> frente a un objetivo de "
         f"{int(cg['cobertura_objetivo_semanas'])}. Y aun así <strong>{len(rot)} modelos van a romper en las próximas "
@@ -725,12 +728,11 @@ def _seccion_insights(m: Dict[str, pd.DataFrame]) -> str:
     ], destacar=[int(i) for i in atascado.index])
 
     sobra = tallas[tallas["desvio_uds"] > 0]["desvio_uds"].sum()
-    return f"""
-<section id="insights">
-  <div class="sec-num">Más allá del enunciado</div>
-  <h2>Cinco cosas que los datos dicen sin que nadie las pregunte</h2>
-  <p class="conclusion">Las cuatro preguntas del informe se responden solas. Estas cinco salen de mirar
-  <em>por qué</em> salen esos números, y dos de ellas cambian lo que habría que hacer el lunes.</p>
+    return seccion("Reto 1 · Más allá del enunciado",
+        "Cinco cosas que los datos dicen sin que nadie las pregunte", "insights",
+        """Las cuatro preguntas del informe se responden solas. Estas cinco salen de mirar
+  <em>por qué</em> salen esos números, y dos de ellas cambian lo que habría que hacer el lunes.""",
+        f"""
 
   <h3>1 · El almacén tiene las tallas equivocadas</h3>
   <p>Es la explicación de la paradoja anterior: {num(m["cobertura_global"].iloc[0]["cobertura_global_semanas"], 1)}
@@ -769,8 +771,7 @@ def _seccion_insights(m: Dict[str, pd.DataFrame]) -> str:
 
   <h3 style="margin-top:44px">5 · Dieciséis modelos son la mitad del negocio</h3>
   <p>Y cuarenta y ocho modelos, el 39&nbsp;% del catálogo, aportan solo el 10&nbsp;% de la facturación. Con el exceso
-  de stock encima, esto apunta a una decisión de surtido, no de reposición.</p>
-</section>"""
+  de stock encima, esto apunta a una decisión de surtido, no de reposición.</p>""")
 
 
 def _seccion_glosario() -> str:
@@ -845,14 +846,10 @@ def _seccion_glosario() -> str:
             "Si la cobertura baja de 6 semanas ya es tarde: aunque se pida hoy, se rompe antes de que llegue.",
         ),
     ]
-    return f"""
-<section id="glosario">
-  <div class="sec-num">Referencia</div>
-  <h2>Glosario</h2>
-  <p class="conclusion">Cada cifra de este informe sale de una de estas definiciones. Si alguna no coincide con
-  la que usa internamente EME, cambia el número, no el método.</p>
-  <div class="glosario">{"".join(terminos)}</div>
-</section>"""
+    return seccion("Referencia · transversal a los tres retos", "Glosario", "glosario",
+        """Cada cifra de este informe sale de una de estas definiciones. Si alguna no coincide con
+        la que usa internamente EME, cambia el número, no el método.""",
+        f'<div class="glosario">{"".join(terminos)}</div>')
 
 
 def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> str:
@@ -888,18 +885,14 @@ def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> str:
         f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td style='color:var(--tinta-3)'>{d}</td></tr>"
         for a, b, c, d in filas
     )
-    return f"""
-<section id="asunciones">
-  <div class="sec-num">Referencia</div>
-  <h2>Asunciones</h2>
-  <p class="conclusion">Todo lo que no viene dado por el enunciado y hemos tenido que decidir nosotros, marcado
-  como tal. <strong>Siete de las doce son decisiones nuestras</strong>: si alguna no coincide con el criterio de
-  EME, basta cambiar el parámetro y volver a ejecutar.</p>
-  <div class="card"><div class="tabla-scroll"><table>
+    return seccion("Referencia · transversal a los tres retos", "Asunciones", "asunciones",
+        """Todo lo que no viene dado por el enunciado y hemos tenido que decidir nosotros, marcado
+        como tal. <strong>Siete de las doce son decisiones nuestras</strong>: si alguna no coincide con el
+        criterio de EME, basta cambiar el parámetro y volver a ejecutar.""",
+        f"""<div class="card"><div class="tabla-scroll"><table>
     <thead><tr><th>Parámetro</th><th>Valor</th><th>Origen</th><th>Por qué</th></tr></thead>
     <tbody>{cuerpo}</tbody>
-  </table></div></div>
-</section>"""
+  </table></div></div>""")
 
 
 def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
@@ -1032,13 +1025,12 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "reposición resta las compras pendientes.",
         ),
     ]
-    return f"""
-<section id="decisiones">
-  <div class="sec-num">Transparencia</div>
-  <h2>Decisiones y calidad de los datos</h2>
-  <p class="conclusion">Once decisiones han sido necesarias para que las cifras de arriba existan. Ninguna es
-  obvia y todas cambian algún número, así que están aquí con el dato original a la vista.
-  <strong>Pulsa cualquiera para ver qué pasaba y cómo se trató.</strong></p>
+    return seccion("Referencia · transversal a los tres retos",
+        "Decisiones y calidad de los datos", "decisiones",
+        """Once decisiones han sido necesarias para que las cifras del informe existan. Ninguna es
+        obvia y todas cambian algún número, así que están aquí con el dato original a la vista.
+        <strong>Pulsa cualquiera para ver qué pasaba y cómo se trató.</strong>""",
+        f"""
   {"".join(bloques)}
 
   <h3 style="margin-top:44px">Resumen auditable</h3>
@@ -1057,24 +1049,103 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
     compras no trae fecha de pedido, solo de llegada. Las 6 semanas del enunciado se toman como dadas.</li>
     <li><strong>Los 14 mercados desconocidos no se pueden recuperar.</strong> Aparecerán como categoría propia
     en cualquier desglose por mercado que los incluya.</li>
-  </ul>
-</section>"""
+  </ul>""")
 
 
 # ---------------------------------------------------------------------------
 # Ensamblaje
 # ---------------------------------------------------------------------------
 
-INDICE = [
-    ("semana", "La semana"),
-    ("reparto", "Reparto"),
-    ("modelos", "Modelos"),
-    ("stock", "Stock"),
-    ("insights", "Más allá"),
-    ("glosario", "Glosario"),
-    ("asunciones", "Asunciones"),
-    ("decisiones", "Decisiones"),
+# Estructura de la web. Cada entrada es un grupo del menú lateral con sus
+# páginas. Los retos 2 y 3 ya figuran aquí para que la estructura se vea
+# completa desde el principio; se rellenan cuando estén.
+Pagina = tuple  # (id, etiqueta, badge)
+
+ESTRUCTURA = [
+    (
+        "Reto 1 · Ventas y stock",
+        [
+            ("semana", "Cómo fue la semana", ""),
+            ("reparto", "Reparto y precio especial", ""),
+            ("modelos", "Modelos", ""),
+            ("stock", "Rotura y exceso", ""),
+            ("insights", "Más allá del enunciado", ""),
+        ],
+    ),
+    (
+        "Reto 2 · Reposición",
+        [("reto2", "Propuesta semanal", "pendiente")],
+    ),
+    (
+        "Reto 3 · Hoja de ruta",
+        [("reto3", "IA a 6 meses", "pendiente")],
+    ),
+    (
+        "Referencia",
+        [
+            ("glosario", "Glosario", ""),
+            ("asunciones", "Asunciones", ""),
+            ("decisiones", "Decisiones y datos", ""),
+        ],
+    ),
 ]
+
+PAGINA_INICIAL = "semana"
+
+
+def _menu_lateral() -> str:
+    """Menú de navegación. Las páginas pendientes se ven, pero no se pulsan."""
+    bloques = []
+    for grupo, paginas in ESTRUCTURA:
+        items = []
+        for pid, etiqueta, badge in paginas:
+            if badge:
+                items.append(
+                    f'<span class="nav-item pendiente">{etiqueta}'
+                    f'<span class="nav-badge">{badge}</span></span>'
+                )
+            else:
+                items.append(
+                    f'<button class="nav-item" data-pagina="{pid}" data-etiqueta="{etiqueta}" '
+                    f'onclick="mostrar(\'{pid}\')">{etiqueta}</button>'
+                )
+        bloques.append(f'<div class="nav-grupo">{grupo}</div>{"".join(items)}')
+    return "".join(bloques)
+
+
+def _siguiente_pagina(pid: str) -> str:
+    """Enlace al siguiente apartado, para poder recorrer el informe en orden."""
+    orden = [(p, e) for _, ps in ESTRUCTURA for p, e, b in ps if not b]
+    ids = [p for p, _ in orden]
+    if pid not in ids or pid == ids[-1]:
+        return ""
+    pid_sig, etiqueta = orden[ids.index(pid) + 1]
+    return (
+        f'<button class="siguiente" onclick="mostrar(\'{pid_sig}\')">'
+        f'Siguiente: {etiqueta} <span class="flecha">→</span></button>'
+    )
+
+
+def _panel(pid: str, grupo: str, titulo: str, cuerpo: str) -> str:
+    """Envuelve el contenido de una página con su cabecera y su enlace al siguiente."""
+    return f"""
+<div class="panel" id="pag-{pid}">
+  <div class="pag-cabecera">
+    <div class="pag-ruta">{grupo}</div>
+    <h1>{titulo}</h1>
+  </div>
+  {cuerpo}
+  {_siguiente_pagina(pid)}
+</div>"""
+
+
+def _panel_pendiente(pid: str, grupo: str, titulo: str, texto: str) -> str:
+    """Hueco para un reto que todavía no está hecho. Se dice, no se disimula."""
+    return f"""
+<div class="panel" id="pag-{pid}">
+  <div class="pag-cabecera"><div class="pag-ruta">{grupo}</div><h1>{titulo}</h1></div>
+  <div class="card"><p>{texto}</p></div>
+</div>"""
 
 
 def construir_informe(
@@ -1082,12 +1153,18 @@ def construir_informe(
     ejemplos: Dict[str, str],
     destino: Path,
 ) -> Path:
-    """Ensambla el informe completo y lo escribe en `destino`. Devuelve la ruta."""
+    """Ensambla la web completa y la escribe en `destino`. Devuelve la ruta.
+
+    La web se navega por páginas, no por scroll: todos los paneles están en el
+    documento pero solo uno es visible. Así los tres retos pueden convivir sin
+    que el informe se convierta en un scroll interminable, y las secciones de
+    referencia (glosario, asunciones, decisiones) quedan donde deben, fuera de
+    cualquier reto porque valen para los tres.
+    """
     _contador["n"] = 0
     ini, fin = config.SEMANA_ACTUAL
 
-    cuerpo = "".join([
-        _hero(metricas["comparativa"]),
+    paginas = [
         _seccion_semana(metricas),
         _seccion_reparto(metricas),
         _seccion_modelos(metricas),
@@ -1096,38 +1173,58 @@ def construir_informe(
         _seccion_glosario(),
         _seccion_asunciones(metricas),
         pagina_decisiones(ejemplos, metricas["resumen_limpieza"]),
-    ])
-    nav = "".join(f'<li><a href="#{a}">{t}</a></li>' for a, t in INDICE)
+    ]
+    # El hero de KPIs encabeza la primera página del Reto 1.
+    paginas[0]["html"] = _hero(metricas["comparativa"]) + paginas[0]["html"]
+
+    paneles = [_panel(p["id"], p["ruta"], p["titulo"], p["html"]) for p in paginas]
+    paneles.append(_panel_pendiente(
+        "reto2", "Reto 2 · Reposición", "Propuesta semanal de reposición",
+        "Pendiente. Aquí irá la propuesta automática de qué modelos y tallas reponer, "
+        "con el plazo de entrega de 6 semanas y la cobertura objetivo de 8."))
+    paneles.append(_panel_pendiente(
+        "reto3", "Reto 3 · Hoja de ruta", "IA a 6 meses",
+        "Pendiente. Aquí irá la hoja de ruta de IA para Compras, Ventas, Planificación, "
+        "Logística, Producto, Marketing y Atención al cliente."))
 
     html = f"""<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EME STUDIOS · Informe semanal {ini:%d/%m/%Y} – {fin:%d/%m/%Y}</title>
+<title>EME STUDIOS · Caso práctico AI Specialist</title>
 <style>{design.css()}</style>
 <script>{plotly.offline.get_plotlyjs()}</script>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div class="marca">EME Studios</div>
-    <h1>Informe semanal<br>de ventas y stock</h1>
-    <p class="subtitulo">Semana del {ini.day} al {fecha_larga(fin)} · datos a cierre del {config.FECHA_CORTE_DATOS:%d/%m/%Y}</p>
-  </header>
+<div class="topbar">
+  <button class="boton-menu" onclick="alternarMenu()">☰ Secciones</button>
+  <span class="topbar-actual"></span>
 </div>
-<nav class="indice"><ul>{nav}</ul></nav>
-<div class="wrap">
-  {cuerpo}
-  <footer>
-    <p>Informe generado automáticamente desde <code>EME_Caso_Practico_Datos.xlsx</code>.
-    Reproducible con <code>python pipelines/run_reto1.py</code>.</p>
-    <p>Las cifras de este informe excluyen los regalos a influencers y aplican las reglas de negocio del caso.
-    Las decisiones de tratamiento de datos están detalladas en la última sección.</p>
-  </footer>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="cabecera-lateral">
+      <div class="marca">EME Studios</div>
+      <p class="sidebar-titulo">Caso práctico<br>AI Specialist</p>
+      <p class="sidebar-sub">Semana del {ini.day} al {fecha_larga(fin)}<br>Datos a cierre del {config.FECHA_CORTE_DATOS:%d/%m/%Y}</p>
+    </div>
+    <nav>{_menu_lateral()}</nav>
+  </aside>
+  <main class="contenido">
+    {"".join(paneles)}
+    <footer>
+      <p>Generado automáticamente desde <code>EME_Caso_Practico_Datos.xlsx</code>.
+      Reproducible con <code>python pipelines/run_reto1.py</code>.</p>
+      <p>Las cifras excluyen los regalos a influencers y aplican las reglas de negocio del caso.
+      El tratamiento de los datos está detallado en <em>Decisiones y datos</em>.</p>
+    </footer>
+  </main>
 </div>
 <button class="tema" onclick="alternarTema()">Tema oscuro</button>
-<script>{design.js_tema()}</script>
+<script>
+const PAGINA_INICIAL = "{PAGINA_INICIAL}";
+{design.js_tema()}
+</script>
 </body>
 </html>"""
 

@@ -251,3 +251,20 @@
   mantiene en una columna aparte, precisamente porque es el número que engaña.
 - **Reto:** 1.
 - **Estado:** confirmado.
+
+### [2026-11-16] La entrega es una web navegable por páginas, no un scroll continuo
+- **Contexto:** con solo el Reto 1 el informe ya era un scroll muy largo, y los tres
+  retos tienen que convivir en el mismo entregable.
+- **Decisión:** menú lateral fijo con los apartados agrupados por reto, y un panel
+  visible cada vez. Los tres retos son grupos del menú; **glosario, asunciones y
+  decisiones quedan fuera de cualquier reto**, en un grupo "Referencia", porque valen
+  para los tres por igual. Los retos 2 y 3 ya figuran en el menú marcados como
+  pendientes: la estructura se ve completa desde el principio.
+- **Detalles de implementación:** todos los paneles están en el DOM y solo uno es
+  visible, así que sigue siendo un único fichero. La navegación usa el hash de la URL
+  (`#stock`), de modo que se puede enlazar un apartado concreto y el botón «atrás» del
+  navegador funciona. Un gráfico de Plotly dibujado dentro de un contenedor oculto no
+  conoce su ancho, así que al mostrar un panel se redimensionan los suyos. Al imprimir
+  se muestran todos los paneles, uno por página.
+- **Reto:** transversal.
+- **Estado:** confirmado con el usuario.
