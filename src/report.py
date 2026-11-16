@@ -16,6 +16,7 @@ from typing import Dict, Iterable, Sequence
 
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io
 import plotly.offline
 
 from . import config, design
@@ -73,14 +74,43 @@ def delta(valor: float, dec: int = 1) -> str:
 # Componentes
 # ---------------------------------------------------------------------------
 
-def grafico(fig: go.Figure) -> str:
+def grafico(fig: go.Figure, div_id: str | None = None) -> str:
     """Inserta una figura. Plotly.js se embebe una sola vez, en el primero."""
     _contador["n"] += 1
-    return plotly.offline.plot(
+    return plotly.io.to_html(
         fig,
-        output_type="div",
+        full_html=False,
         include_plotlyjs=False,
+        div_id=div_id,
         config={"displayModeBar": False, "responsive": True},
+    )
+
+
+def selector(div_id: str, opciones: Sequence[str]) -> str:
+    """Control segmentado que alterna qué métrica muestra un gráfico."""
+    botones = "".join(
+        f'<button class="{"activo" if i == 0 else ""}" '
+        f"onclick=\"cambiarMetrica('{div_id}', {i}, this)\">{texto}</button>"
+        for i, texto in enumerate(opciones)
+    )
+    return f'<div class="selector">{botones}</div>'
+
+
+def leyenda(*entradas: tuple[str, str]) -> str:
+    """Leyenda propia, con más control tipográfico que la de Plotly."""
+    partes = "".join(
+        f'<span><i style="background:{color}"></i>{texto}</span>' for texto, color in entradas
+    )
+    return f'<div class="leyenda">{partes}</div>'
+
+
+def registrar(div_id: str, grupos: Sequence[int], ejes: Sequence[dict]) -> str:
+    """Script que asocia cada serie a su métrica y el formato de eje de cada una."""
+    import json
+
+    return (
+        f"<script>registrarMetricas('{div_id}', {json.dumps(list(grupos))}, "
+        f"{json.dumps(list(ejes))});</script>"
     )
 
 
@@ -133,7 +163,7 @@ def seccion(ruta: str, titulo: str, pid: str, conclusion: str, cuerpo: str) -> D
         "id": pid,
         "ruta": ruta,
         "titulo": titulo,
-        "html": f'<p class="conclusion">{conclusion}</p>{cuerpo}',
+        "html": (f'<p class="conclusion">{conclusion}</p>{cuerpo}' if conclusion.strip() else cuerpo),
     }
 
 
@@ -209,91 +239,116 @@ def _barras_horizontales(
     plantilla_grafico(fig, altura=alto)
     # Reservar espacio a la derecha para la etiqueta del valor: sin margen, la
     # barra más larga se come su propio texto.
+    # El hueco depende de lo larga que sea la etiqueta: "16.248 € · 47 %" ocupa
+    # bastante más que "81 %".
     maximo = max(valores) if len(valores) else 1
+    holgura = 1.30 + 0.022 * max((len(t) for t in texto), default=4)
     fig.update_yaxes(autorange="reversed", showgrid=False, ticklabelstandoff=10)
-    fig.update_xaxes(showgrid=False, showticklabels=False, range=[0, maximo * 1.38])
+    fig.update_xaxes(showgrid=False, showticklabels=False, range=[0, maximo * holgura])
     fig.update_layout(margin=dict(l=0, r=12, t=4, b=4), bargap=0.38)
     return fig
 
 
-def grafico_evolucion(df: pd.DataFrame) -> go.Figure:
-    """Facturación neta semanal. La semana analizada va marcada con un punto."""
-    ultima = df.iloc[-1]
-    fig = go.Figure(
-        go.Scatter(
-            x=df["inicio_semana"],
-            y=df["facturacion_neta"],
-            mode="lines",
-            line=dict(color=C["acento"], width=2, shape="spline", smoothing=0.5),
-            hovertemplate="Semana del %{x|%d/%m/%Y}<br>%{y:,.0f} €<extra></extra>",
+METRICAS_EVOLUCION = [
+    ("unidades", "Unidades", "", " uds"),
+    ("facturacion_neta", "Facturación neta", "", " €"),
+    ("margen", "Margen bruto", "", " €"),
+]
+
+
+def grafico_evolucion(df: pd.DataFrame, div_id: str) -> tuple[str, list[int], list[dict]]:
+    """Evolución semanal frente a la misma semana del año anterior.
+
+    Dibuja las tres métricas (seis series) y deja visible solo la primera: el
+    selector alterna la visibilidad, que es instantáneo y no recalcula nada.
+
+    El año anterior va en gris de contexto y el actual en el color de acento.
+    No es decorativo: es el patrón de énfasis, y la identidad la lleva además la
+    leyenda, no solo el color.
+    """
+    fig = go.Figure()
+    grupos: list[int] = []
+    for i, (columna, _, _, sufijo) in enumerate(METRICAS_EVOLUCION):
+        fig.add_trace(
+            go.Scatter(
+                x=df["inicio_semana"], y=df[f"{columna}_ly"],
+                mode="lines", name="Año anterior",
+                line=dict(color=C["referencia"], width=2, shape="spline", smoothing=0.5),
+                hovertemplate="Año anterior: %{y:,.0f}" + sufijo + "<extra></extra>",
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=[ultima["inicio_semana"]],
-            y=[ultima["facturacion_neta"]],
-            mode="markers+text",
-            marker=dict(color=C["acento"], size=10, line=dict(color=C["superficie"], width=2)),
-            text=[f"{num(ultima['facturacion_neta'])} €"],
-            textposition="top center",
-            textfont=dict(size=12, color=C["tinta"]),
-            hoverinfo="skip",
+        fig.add_trace(
+            go.Scatter(
+                x=df["inicio_semana"], y=df[columna],
+                mode="lines", name="Este año",
+                line=dict(color=C["acento"], width=2.5, shape="spline", smoothing=0.5),
+                hovertemplate="Este año: %{y:,.0f}" + sufijo + "<extra></extra>",
+            )
         )
-    )
-    plantilla_grafico(fig, altura=300)
-    fig.update_layout(margin=dict(l=0, r=20, t=24, b=8))
-    fig.update_yaxes(tickformat=",.0f", ticksuffix=" €")
+        grupos += [i, i]
+
+    plantilla_grafico(fig, altura=320)
+    fig.update_layout(margin=dict(l=0, r=16, t=12, b=8), hovermode="x unified")
     meses = df["inicio_semana"].dt.to_period("M").drop_duplicates()
     marcas = [m.to_timestamp() for m in meses]
     fig.update_xaxes(
-        tickmode="array",
-        tickvals=marcas,
+        tickmode="array", tickvals=marcas,
         ticktext=[MESES_CORTOS[m.month - 1] for m in marcas],
     )
-    return fig
+    ejes = [{"yaxis.ticksuffix": sufijo, "yaxis.tickformat": ",.0f"}
+            for _, _, _, sufijo in METRICAS_EVOLUCION]
+    return grafico(fig, div_id), grupos, ejes
 
 
-def grafico_estacionalidad(df: pd.DataFrame) -> go.Figure:
-    """Unidades por mes: el total en gris y la parte a precio especial encima.
+METRICAS_ESPECIAL = [
+    ("uds_especial", "uds_total", "Unidades", " uds"),
+    ("eur_especial", "eur_total", "Facturación", " €"),
+]
+
+
+def grafico_estacionalidad(df: pd.DataFrame, div_id: str) -> tuple[str, list[int], list[dict]]:
+    """Ventas por mes: el total en gris y la parte a precio especial encima.
 
     El total es el contexto que hace legible la otra serie: sin él, los meses sin
-    campaña no se ven y no se aprecia qué parte del mes fue rebajada.
+    campaña no se ven y no se aprecia qué parte del mes fue rebajada. El selector
+    permite leerlo en unidades o en euros, que no cuentan lo mismo: una unidad
+    rebajada factura un 40 % menos.
     """
     fig = go.Figure()
-    fig.add_trace(
-        go.Bar(
-            name="Total vendido",
-            x=df["mes"], y=df["uds_total"],
-            marker=dict(color=C["referencia"], line=dict(width=0)),
-            hovertemplate="%{y:,.0f} uds en total<extra></extra>",
+    grupos: list[int] = []
+    for i, (col_esp, col_tot, _, sufijo) in enumerate(METRICAS_ESPECIAL):
+        fig.add_trace(
+            go.Bar(
+                x=df["mes"], y=df[col_tot], name="Total",
+                marker=dict(color=C["referencia"], line=dict(width=0)),
+                hovertemplate="Total: %{y:,.0f}" + sufijo + "<extra></extra>",
+            )
         )
-    )
-    fig.add_trace(
-        go.Bar(
-            name="A precio especial",
-            x=df["mes"], y=df["uds_especial"],
-            marker=dict(color=C["acento"], line=dict(width=0)),
-            hovertemplate="%{y:,.0f} uds a precio especial<extra></extra>",
+        fig.add_trace(
+            go.Bar(
+                x=df["mes"], y=df[col_esp], name="A precio especial",
+                marker=dict(color=C["acento"], line=dict(width=0)),
+                hovertemplate="A precio especial: %{y:,.0f}" + sufijo + "<extra></extra>",
+            )
         )
-    )
+        grupos += [i, i]
+
     plantilla_grafico(fig, altura=300)
     fig.update_layout(
-        barmode="overlay", bargap=0.3, showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
-                    font=dict(size=12, color=C["tinta_2"])),
-        margin=dict(l=0, r=8, t=36, b=8),
-        hovermode="x unified",
+        barmode="overlay", bargap=0.3,
+        margin=dict(l=0, r=8, t=12, b=8), hovermode="x unified",
     )
     fig.update_xaxes(
-        tickmode="array",
-        tickvals=list(df["mes"]),
+        tickmode="array", tickvals=list(df["mes"]),
         ticktext=[
             f"{MESES_CORTOS[m.month - 1]}<br>{m.year}" if m.month in (1, 7) else MESES_CORTOS[m.month - 1]
             for m in df["mes"]
         ],
         tickfont=dict(size=10),
     )
-    return fig
+    ejes = [{"yaxis.ticksuffix": sufijo, "yaxis.tickformat": ",.0f"}
+            for _, _, _, sufijo in METRICAS_ESPECIAL]
+    return grafico(fig, div_id), grupos, ejes
 
 
 def grafico_curva_tallas(df: pd.DataFrame) -> go.Figure:
@@ -475,27 +530,24 @@ def _hero(comparativa: pd.DataFrame) -> str:
     return f'<div class="grid g4" style="margin-bottom:28px">{"".join(tarjetas)}</div>'
 
 
-def _seccion_semana(m: Dict[str, pd.DataFrame]) -> str:
+def _seccion_semana(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     comp = m["comparativa"]
-    f = comp.iloc[0]
-    tabla = tabla_html(
-        comp.assign(
-            rango=comp.apply(
-                lambda r: f"{pd.Timestamp(r['desde']):%d/%m/%Y} – {pd.Timestamp(r['hasta']):%d/%m/%Y}", axis=1
-            )
-        ),
-        [
-            ("periodo", "Periodo", "texto"),
-            ("rango", "Fechas", "texto"),
-            ("unidades", "Unidades", "num"),
-            ("facturacion_neta", "Facturación neta", "eur"),
-            ("margen", "Margen", "eur"),
-            ("margen_pct", "Margen %", "pct"),
-            ("pedidos", "Pedidos", "num"),
-            ("ticket_medio", "Ticket medio", "eur2"),
-        ],
-        destacar=[0],
+    comp = comp.assign(
+        rango=comp.apply(
+            lambda r: f"{pd.Timestamp(r['desde']):%d/%m/%y} – {pd.Timestamp(r['hasta']):%d/%m/%y}", axis=1
+        )
     )
+    tabla = tabla_html(comp, [
+        ("periodo", "Periodo", "texto"),
+        ("rango", "Fechas", "texto"),
+        ("unidades", "Uds", "num"),
+        ("facturacion_neta", "Facturación", "eur"),
+        ("margen", "Margen", "eur"),
+        ("margen_pct", "Margen %", "pct"),
+        ("pedidos", "Pedidos", "num"),
+        ("ticket_medio", "Ticket", "eur2"),
+    ], destacar=[0])
+
     crec = m["crecimiento"]
     var = crec[crec["periodo"] == "variacion_pct"].iloc[0]
     desglose = f"""
@@ -507,25 +559,26 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> str:
   <div class="card"><div class="dato">{delta(var['precio_medio_ud'])}</div>
     <div class="dato-lbl">Precio medio por unidad — {eur(crec.iloc[0]['precio_medio_ud'], 2)}</div></div>
 </div>"""
-    return seccion(
-        "Reto 1 · Pregunta 1", "Cómo fue la semana", "semana",
-        f"La semana cierra en <strong>{eur(f['facturacion_neta'])}</strong> y {num(f['unidades'])} unidades: "
-        f"{delta(f['facturacion_neta_vs_semana_anterior_pct'])} frente a la semana anterior y "
-        f"{delta(f['facturacion_neta_vs_ano_anterior_pct'])} frente a la misma semana de 2024. "
-        f"El margen se mantiene estable en el {pct(f['margen_pct'])}, igual que las dos semanas de referencia.",
-        f'<div class="card">{grafico(grafico_evolucion(m["evolucion_semanal"]))}'
-        f'<p class="nota">Facturación neta por semana, últimas 26 semanas. El punto marca la semana analizada.</p></div>'
-        f'<div class="card" style="margin-top:20px">{tabla}</div>'
-        f'<h3 style="margin-top:36px">De dónde sale el crecimiento interanual</h3>'
-        f'<p>Todo el crecimiento viene de <strong>más pedidos</strong>. La cesta no se mueve: '
-        f'siguen comprando 1,1 prendas por pedido, igual que hace un año. Subir la cesta a 1,3 unidades '
-        f'valdría unos 6.000 € por semana sin captar un solo cliente nuevo.</p>{desglose}',
-    )
+
+    div_id = "g-evolucion"
+    html_grafico, grupos, ejes = grafico_evolucion(m["evolucion_semanal"], div_id)
+    cuerpo = f"""
+<div class="card">
+  {selector(div_id, [etiqueta for _, etiqueta, _, _ in METRICAS_EVOLUCION])}
+  {leyenda(("Este año", C["acento"]), ("Misma semana del año anterior", C["referencia"]))}
+  {html_grafico}
+  {registrar(div_id, grupos, ejes)}
+  <p class="nota">Últimas 26 semanas, comparadas con la misma semana ISO del año anterior.</p>
+</div>
+<div class="card" style="margin-top:20px">{tabla}</div>
+<h3 style="margin-top:36px">De dónde sale el crecimiento interanual</h3>
+{desglose}"""
+
+    return seccion("Reto 1 · Pregunta 1", "Cómo fue la semana", "semana", "", cuerpo)
 
 
-def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> str:
+def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     merc, sec, cat = m["desglose_mercado"], m["desglose_seccion"], m["desglose_categoria"]
-    total = merc["facturacion_neta"].sum()
 
     g_merc = grafico(_barras_horizontales(
         merc["mercado"], merc["facturacion_neta"],
@@ -543,21 +596,20 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> str:
         ("margen_pct", "Margen %", "pct"),
         ("pct_promocion", "Con WELCOME10", "pct"),
     ])
+    # La columna de precio especial se cae de esta tabla: esta semana es 0 en
+    # todos los mercados y una columna de ceros no informa, confunde.
     t_promo = tabla_html(merc, [
         ("mercado", "Mercado", "texto"),
         ("unidades", "Unidades", "num"),
         ("facturacion_neta", "Facturación", "eur"),
         ("peso_pct", "Peso", "pct"),
-        ("pct_precio_especial", "A precio especial", "pct"),
         ("pct_promocion", "Con WELCOME10", "pct"),
     ])
-    return seccion(
-        "Reto 1 · Pregunta 2", "Cómo se reparte, y qué se vendió rebajado", "reparto",
-        f"España es la mitad del negocio ({pct(merc.iloc[0]['peso_pct'])}) y la chaqueta casi la mitad de la "
-        f"facturación ({pct(cat.iloc[0]['peso_pct'])}). <strong>Esta semana no se ha vendido ni una unidad a precio "
-        f"especial</strong>, pero no es una anomalía: el precio especial en EME es estacional, no continuo. Lo que sí "
-        f"está activo es el cupón <strong>WELCOME10</strong>, con un peso muy desigual por mercado.",
-        f"""
+
+    div_id = "g-especial"
+    html_grafico, grupos, ejes = grafico_estacionalidad(m["estacionalidad_especial"], div_id)
+
+    cuerpo = f"""
 <div class="grid g2">
   <div class="card"><h3>Por mercado</h3><p class="nota" style="margin-bottom:12px">Facturación neta y peso sobre el total</p>{g_merc}</div>
   <div class="card"><h3>Por categoría</h3><p class="nota" style="margin-bottom:12px">Facturación neta y peso sobre el total</p>{g_cat}</div>
@@ -566,20 +618,30 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> str:
 
 <h3 style="margin-top:36px">El precio especial es estacional</h3>
 <p>Las ventas a precio rebajado se concentran en campañas: rebajas de enero, rebajas de verano y
-Black&nbsp;Friday. En noviembre de 2024 movieron 123 unidades. <strong>La próxima ventana está a dos o tres
-semanas</strong>, así que el 0&nbsp;% de esta semana es la calma previa a la campaña, no una señal de alarma.</p>
-<div class="card" style="margin-top:16px">{grafico(grafico_estacionalidad(m["estacionalidad_especial"]))}
-<p class="nota">Unidades vendidas por mes. En gris el total, en color la parte vendida a precio especial.</p></div>
+Black&nbsp;Friday.</p>
+<div class="card" style="margin-top:16px">
+  {selector(div_id, [etiqueta for _, _, etiqueta, _ in METRICAS_ESPECIAL])}
+  {leyenda(("A precio especial", C["acento"]), ("Total vendido", C["referencia"]))}
+  {html_grafico}
+  {registrar(div_id, grupos, ejes)}
+  <p class="nota">En euros el precio especial pesa menos que en unidades: cada unidad rebajada factura
+  en torno a un 40&nbsp;% menos.</p>
+</div>
 
 <h3 style="margin-top:36px">Dónde pesa el cupón WELCOME10</h3>
-<p>El cupón descuenta un 10&nbsp;% y lo tratamos como venta a precio completo, no como precio especial.
-Su peso varía mucho: en Países&nbsp;Bajos casi una cuarta parte de la facturación lleva cupón; en Estados&nbsp;Unidos,
-ninguna.</p>
-<div class="card" style="margin-top:16px">{t_promo}</div>""",
+<p>El cupón descuenta un 10&nbsp;% y lo tratamos como venta a precio completo, no como precio especial.</p>
+<div class="card" style="margin-top:16px">{t_promo}</div>"""
+
+    return seccion(
+        "Reto 1 · Pregunta 2", "Cómo se reparte, y qué se vendió rebajado", "reparto",
+        "<strong>Esta semana no se ha vendido ni una unidad a precio especial</strong>, pero no es una "
+        "anomalía: el precio especial en EME es estacional, no continuo. Lo que sí está activo es el "
+        "cupón <strong>WELCOME10</strong>.",
+        cuerpo,
     )
 
 
-def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> str:
+def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     top, bottom = m["ranking_top"], m["ranking_bottom"]
     cols = [
         ("modelo_nombre", "Modelo", "texto"),
@@ -589,9 +651,9 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> str:
         ("stock_actual", "Stock", "num"),
         ("sell_through_pct", "Sell-through", "pct"),
     ]
-    sin_venta = m["ranking_sin_venta_en_la_semana"].head(8)
-    t_sin = tabla_html(sin_venta, [
-        ("modelo_id", "Modelo", "texto"),
+    t_sin = tabla_html(m["ranking_sin_venta_en_la_semana"].head(8), [
+        ("modelo_nombre", "Modelo", "texto"),
+        ("categoria", "Categoría", "texto"),
         ("unidades_vendidas", "Uds vendidas (histórico)", "num"),
         ("stock_actual", "Stock", "num"),
         ("sell_through_pct", "Sell-through", "pct"),
@@ -603,13 +665,7 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> str:
         f'({int(r["pct_catalogo"])} % del catálogo)</div></div>'
         for _, r in conc.iterrows()
     )
-    return seccion(
-        "Reto 1 · Pregunta 3", "Qué modelos tiran y cuáles no", "modelos",
-        f"Las chaquetas y sudaderas <strong>NOVA</strong> y <strong>BLAZE</strong> copan nueve de los diez primeros "
-        f"puestos. En la cola, modelos con una sola unidad vendida y sell-through por debajo del 30&nbsp;%: producto "
-        f"que ocupa almacén y caja sin rotar. <strong>Dieciséis modelos, el 13&nbsp;% del catálogo, hacen la mitad "
-        f"de la facturación.</strong>",
-        f"""
+    cuerpo = f"""
 <div class="card"><h3>Los 10 que más venden</h3>
 <p class="nota" style="margin-bottom:14px">Unidades de la semana. El sell-through es histórico del modelo, no de la semana.</p>
 {tabla_html(top, cols)}</div>
@@ -623,76 +679,68 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> str:
 {t_sin}</div>
 
 <h3 style="margin-top:36px">La facturación está muy concentrada</h3>
-<p>Cuatro de cada diez modelos aportan solo el 10&nbsp;% de la facturación. Eso dimensiona el problema de
-surtido: hay mucho catálogo que no se paga a sí mismo.</p>
-<div class="grid g3" style="margin-top:16px">{tiles}</div>""",
+<div class="grid g3" style="margin-top:16px">{tiles}</div>"""
+
+    return seccion(
+        "Reto 1 · Pregunta 3", "Qué modelos tiran y cuáles no", "modelos",
+        "Las chaquetas y sudaderas <strong>NOVA</strong> y <strong>BLAZE</strong> copan nueve de los diez "
+        "primeros puestos. En la cola, modelos con una sola unidad vendida y sell-through por debajo del "
+        "30&nbsp;%.",
+        cuerpo,
     )
 
 
-def _seccion_stock(m: Dict[str, pd.DataFrame]) -> str:
+def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     cg = m["cobertura_global"].iloc[0]
     rot, exc = m["rotura_por_modelo"], m["exceso_por_modelo"]
+
+    # La tabla se lee de izquierda a derecha como una resta: de estas tallas
+    # esperamos vender tanto, tenemos tanto, y falta esto.
     rot = rot.assign(
-        tallas_txt=rot["tallas_en_rotura"].astype(int).astype(str) + " de " + rot["tallas"].astype(int).astype(str)
+        disponible=(rot["stock_tallas_rotura"] + rot["en_camino_tallas_rotura"]).round(0),
+        tallas_txt=rot["tallas_rotas"] + " (de " + rot["tallas"].astype(int).astype(str) + ")",
     )
     t_rot = tabla_html(rot.head(12), [
         ("modelo_nombre", "Modelo", "texto"),
-        ("tallas_txt", "Tallas en rotura", "texto"),
-        ("stock_modelo", "Stock modelo", "num"),
-        ("stock_tallas_rotura", "Stock tallas", "num"),
-        ("en_camino_tallas_rotura", "En camino", "num"),
+        ("tallas_txt", "Tallas que rompen", "texto"),
         ("demanda_tallas_rotura", "Demanda 4 sem", "num1"),
-        ("deficit_unidades", "Déficit", "num1"),
+        ("disponible", "Disponible", "num"),
+        ("deficit_unidades", "Faltan", "num1"),
+        ("stock_modelo", "Stock del modelo", "num"),
     ])
     t_exc = tabla_html(exc.head(12), [
         ("modelo_nombre", "Modelo", "texto"),
-        ("categoria", "Categoría", "texto"),
         ("stock_disponible", "Stock", "num"),
         ("demanda_semanal", "Demanda/sem", "num1"),
         ("cobertura_semanas", "Cobertura (sem)", "num1"),
         ("unidades_exceso", "Uds sobrantes", "num"),
         ("capital_inmovilizado", "Capital parado", "eur"),
     ])
-    sens = tabla_html(m["sensibilidad_umbral"], [
-        ("umbral_semanas", "Umbral (semanas)", "num"),
-        ("modelos", "Modelos marcados", "num"),
-        ("pct_catalogo", "% del catálogo", "pct"),
-    ], destacar=[2])
-    return seccion(
-        "Reto 1 · Pregunta 4", "Qué va a romper y qué sobra", "stock",
-        f"El almacén tiene <strong>{num(cg['stock_total_uds'])} unidades</strong>, es decir "
-        f"<strong>{num(cg['cobertura_global_semanas'], 1)} semanas de cobertura</strong> frente a un objetivo de "
-        f"{int(cg['cobertura_objetivo_semanas'])}. Y aun así <strong>{len(rot)} modelos van a romper en las próximas "
-        f"cuatro semanas</strong>. No es un problema de cuánto stock hay, sino de cómo está repartido entre tallas.",
-        f"""
+    cuerpo = f"""
 <div class="grid g4">
   <div class="card"><div class="dato">{num(cg['stock_total_uds'])}</div><div class="dato-lbl">unidades en almacén</div></div>
   <div class="card"><div class="dato">{num(cg['cobertura_global_semanas'], 1)}</div><div class="dato-lbl">semanas de cobertura (objetivo: {int(cg['cobertura_objetivo_semanas'])})</div></div>
-  <div class="card"><div class="dato alerta">{len(rot)}</div><div class="dato-lbl">modelos en rotura · {int(rot['tallas_en_rotura'].sum())} tallas</div></div>
+  <div class="card"><div class="dato alerta">{len(rot)}</div><div class="dato-lbl">modelos en rotura en 4 semanas · {int(rot['tallas_en_rotura'].sum())} tallas</div></div>
   <div class="card"><div class="dato">{eur(exc['capital_inmovilizado'].sum())}</div><div class="dato-lbl">capital parado en exceso de stock</div></div>
 </div>
 
-<h3 style="margin-top:36px">Modelos que se quedan sin stock en 4 semanas</h3>
-<p>Un modelo entra aquí si le falta <strong>alguna talla</strong>, no si le falta stock en conjunto. Sumar tallas
-antes de comparar esconde el problema: un modelo con exceso de XL y cero de M parece sano y no lo está.
-Fíjate en <strong>NOVA BOMBER GREY MELANGE</strong>: tiene 43 unidades y 94 más en camino, pero las M y las L
-están a cero y lo que viene son XS.</p>
+<h3 style="margin-top:36px">Modelos en rotura en 4 semanas</h3>
+<p>Un modelo entra aquí si le falta <strong>alguna talla</strong>, no si le falta stock en conjunto.
+No se puede vender una M con el stock de XL.</p>
 <div class="card" style="margin-top:16px">{t_rot}
-<p class="nota">Las 12 primeras de {len(rot)}. <strong>Déficit = demanda − stock en esas tallas − en camino a esas tallas.</strong> La columna «stock del modelo» está para comparar: es lo que haría pensar que el modelo está sano. Las compras vencidas sin confirmar no cuentan como stock en camino.</p></div>
+<p class="nota"><strong>Disponible</strong> = lo que hay en almacén de esas tallas más las compras que
+llegan dentro de las 4 semanas. <strong>Faltan</strong> = demanda − disponible. La última columna es el
+stock del modelo entero: el número que haría pensar que está sano.
+Las 12 primeras de {len(rot)}.</p></div>
 
 <h3 style="margin-top:36px">Modelos con exceso de stock</h3>
-<p>Ordenados por <strong>capital inmovilizado</strong>, no por semanas de cobertura. La cobertura es una división
-y se dispara con los productos que casi no se venden, aunque sean baratos; lo que decide dirección es cuánto
-dinero hay parado.</p>
+<p>Ordenados por <strong>capital inmovilizado</strong>, no por semanas de cobertura: la cobertura se
+dispara en productos baratos que casi no rotan.</p>
 <div class="card" style="margin-top:16px">{t_exc}
-<p class="nota">Las 12 primeras de {len(exc)}. Unidades sobrantes = stock − demanda semanal × 8 semanas de cobertura objetivo.</p></div>
+<p class="nota">Las 12 primeras de {len(exc)}. Unidades sobrantes = stock − demanda semanal × 8 semanas
+de cobertura objetivo. El umbral de exceso está en las <em>Asunciones</em>.</p></div>"""
 
-<h3 style="margin-top:36px">¿Y si el umbral fuese otro?</h3>
-<p>El umbral de 16 semanas lo hemos elegido nosotros, así que conviene enseñar cuánto depende de él el
-diagnóstico: <strong>casi nada</strong>. Entre 8 y 16 semanas el resultado es idéntico, y hay que irse a un año
-entero de cobertura para bajar de la mitad del catálogo.</p>
-<div class="card" style="margin-top:16px">{sens}</div>""",
-    )
+    return seccion("Reto 1 · Pregunta 4", "Qué va a romper y qué sobra", "stock", "", cuerpo)
 
 
 def _seccion_insights(m: Dict[str, pd.DataFrame]) -> str:
@@ -852,7 +900,7 @@ def _seccion_glosario() -> str:
         f'<div class="glosario">{"".join(terminos)}</div>')
 
 
-def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> str:
+def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     """Qué viene del enunciado y qué hemos decidido nosotros."""
     DATO = '<span class="tag tag-dato">Enunciado</span>'
     MIO = '<span class="tag tag-mio">Decisión nuestra</span>'
@@ -865,7 +913,7 @@ def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> str:
         ("Cobertura objetivo", "8 semanas", DATO,
          "El enunciado lo da en el Reto 2, pero es la política de stock de la empresa: no cambia según qué informe se lea."),
         ("Umbral de exceso", "16 semanas (2 × objetivo)", MIO,
-         "No viene en el enunciado. La tabla de sensibilidad de la pregunta 4 muestra que entre 8 y 16 semanas el resultado es el mismo."),
+         "No viene en el enunciado. Da casi igual dónde se ponga: ver la tabla de sensibilidad debajo."),
         ("Ventana del forecast", "media móvil de 4 semanas", VALID,
          "Elegida por backtesting con origen móvil sobre 13 cortes del último año: MAE 2,09 y sesgo +9,8 %, frente a MAE 2,05 y sesgo +20,1 % con 8 semanas."),
         ("Precios sin IVA", "se asume que no lo llevan", MIO,
@@ -885,6 +933,11 @@ def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> str:
         f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td style='color:var(--tinta-3)'>{d}</td></tr>"
         for a, b, c, d in filas
     )
+    sens = tabla_html(m["sensibilidad_umbral"], [
+        ("umbral_semanas", "Umbral (semanas)", "num"),
+        ("modelos", "Modelos marcados", "num"),
+        ("pct_catalogo", "% del catálogo", "pct"),
+    ], destacar=[2])
     return seccion("Referencia · transversal a los tres retos", "Asunciones", "asunciones",
         """Todo lo que no viene dado por el enunciado y hemos tenido que decidir nosotros, marcado
         como tal. <strong>Siete de las doce son decisiones nuestras</strong>: si alguna no coincide con el
@@ -892,7 +945,13 @@ def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> str:
         f"""<div class="card"><div class="tabla-scroll"><table>
     <thead><tr><th>Parámetro</th><th>Valor</th><th>Origen</th><th>Por qué</th></tr></thead>
     <tbody>{cuerpo}</tbody>
-  </table></div></div>""")
+  </table></div></div>
+
+<h3 style="margin-top:44px">¿Cuánto depende el diagnóstico del umbral de exceso?</h3>
+<p>Las 16 semanas las hemos elegido nosotros, así que conviene enseñar cuánto cambia el resultado si se
+mueven: <strong>casi nada</strong>. Entre 8 y 16 semanas salen los mismos modelos, y hay que irse a un año
+entero de cobertura para bajar de la mitad del catálogo. El umbral no es el problema: el sobrestock sí.</p>
+<div class="card" style="margin-top:16px">{sens}</div>""")
 
 
 def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
@@ -1195,6 +1254,10 @@ def construir_informe(
 <title>EME STUDIOS · Caso práctico AI Specialist</title>
 <style>{design.css()}</style>
 <script>{plotly.offline.get_plotlyjs()}</script>
+<script>
+const PAGINA_INICIAL = "{PAGINA_INICIAL}";
+{design.js_tema()}
+</script>
 </head>
 <body>
 <div class="topbar">
@@ -1221,10 +1284,6 @@ def construir_informe(
   </main>
 </div>
 <button class="tema" onclick="alternarTema()">Tema oscuro</button>
-<script>
-const PAGINA_INICIAL = "{PAGINA_INICIAL}";
-{design.js_tema()}
-</script>
 </body>
 </html>"""
 

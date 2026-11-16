@@ -17,6 +17,14 @@ from . import config, forecast
 
 Periodo = Tuple[dt.date, dt.date]
 
+# Orden natural de las tallas, para listarlas como se leen en una etiqueta.
+ORDEN_TALLAS = {"XS": 0, "S": 1, "M": 2, "L": 3, "XL": 4, "XXL": 5, "U": 6}
+
+
+def _orden_talla(talla: str) -> int:
+    return ORDEN_TALLAS.get(talla, 99)
+
+
 # Un modelo se considera con exceso de stock si su cobertura supera el doble de
 # la cobertura objetivo. Umbral documentado en CLAUDE.md y revisable.
 UMBRAL_EXCESO_SEMANAS = 2 * config.COBERTURA_OBJETIVO_SEMANAS
@@ -167,6 +175,13 @@ def ranking_modelos(
     # nada es peor noticia que uno que vendió una unidad.
     sin_venta = st[~st.index.isin(agregado["modelo_id"])].reset_index()
     sin_venta = sin_venta[sin_venta["stock_actual"] > 0]
+    # Sin el nombre comercial la tabla es ilegible: nadie reconoce un modelo por
+    # su referencia.
+    nombres = (
+        ventas[["modelo_id", "modelo_nombre", "seccion", "categoria"]]
+        .drop_duplicates("modelo_id")
+    )
+    sin_venta = sin_venta.merge(nombres, on="modelo_id", how="left")
 
     return {
         "top": agregado.head(top_n).reset_index(drop=True),
@@ -259,6 +274,7 @@ def alertas_stock(
             demanda_tallas_rotura=("demanda_horizonte", "sum"),
             stock_tallas_rotura=("stock_disponible", "sum"),
             en_camino_tallas_rotura=("en_camino", "sum"),
+            tallas_rotas=("talla", lambda t: ", ".join(sorted(t, key=_orden_talla))),
         )
         .merge(por_modelo[["modelo_id", "tallas", "stock_disponible", "en_camino"]], on="modelo_id")
         .rename(columns={"stock_disponible": "stock_modelo", "en_camino": "en_camino_modelo"})
@@ -370,18 +386,24 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
 
 
 def evolucion_semanal(ventas: pd.DataFrame, n_semanas: int = 26) -> pd.DataFrame:
-    """Serie semanal de unidades, facturación y margen de las últimas semanas."""
-    g = (
-        ventas.groupby("inicio_semana")
-        .agg(
-            unidades=("unidades", "sum"),
-            facturacion_neta=("facturacion_neta", "sum"),
-            margen=("margen", "sum"),
-        )
-        .reset_index()
-        .sort_values("inicio_semana")
-        .tail(n_semanas)
+    """Serie semanal de las últimas semanas, con la misma semana ISO del año anterior.
+
+    La comparación se hace por **número de semana ISO**, no por fecha: así ambas
+    series tienen los mismos días de la semana y la estacionalidad cuadra.
+    """
+    por_semana = ventas.groupby(["anio_iso", "semana_iso"], as_index=False).agg(
+        inicio_semana=("inicio_semana", "min"),
+        unidades=("unidades", "sum"),
+        facturacion_neta=("facturacion_neta", "sum"),
+        margen=("margen", "sum"),
     )
+    reciente = por_semana.sort_values("inicio_semana").tail(n_semanas).copy()
+
+    anterior = por_semana.copy()
+    anterior["anio_iso"] += 1  # para cruzar con la misma semana del año siguiente
+    anterior = anterior[["anio_iso", "semana_iso", "unidades", "facturacion_neta", "margen"]]
+
+    g = reciente.merge(anterior, on=["anio_iso", "semana_iso"], how="left", suffixes=("", "_ly"))
     g["margen_pct"] = (100 * g["margen"] / g["facturacion_neta"]).round(1)
     return g.reset_index(drop=True)
 
@@ -401,6 +423,8 @@ def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
                 {
                     "uds_especial": x.loc[x["is_special"], "unidades"].sum(),
                     "uds_total": x["unidades"].sum(),
+                    "eur_especial": x.loc[x["is_special"], "facturacion_neta"].sum(),
+                    "eur_total": x["facturacion_neta"].sum(),
                 }
             ),
             include_groups=False,
@@ -408,6 +432,7 @@ def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
     g["pct_especial"] = (100 * g["uds_especial"] / g["uds_total"]).round(1)
+    g["pct_especial_eur"] = (100 * g["eur_especial"] / g["eur_total"]).round(1)
     return g
 
 
@@ -431,8 +456,7 @@ def curva_tallas(ventas: pd.DataFrame, stock: pd.DataFrame, semanas: int = 12) -
     df["stock_ideal"] = (df["demanda"] / df["demanda"].sum() * df["stock"].sum()).round(0)
     df["desvio_uds"] = (df["stock"] - df["stock_ideal"]).round(0)
 
-    orden = {"XS": 0, "S": 1, "M": 2, "L": 3, "XL": 4, "XXL": 5, "U": 6}
-    return df.reset_index().sort_values("talla", key=lambda s: s.map(orden)).reset_index(drop=True)
+    return df.reset_index().sort_values("talla", key=lambda s: s.map(_orden_talla)).reset_index(drop=True)
 
 
 def fiabilidad_proveedores(compras: pd.DataFrame) -> pd.DataFrame:

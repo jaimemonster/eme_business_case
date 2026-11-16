@@ -306,6 +306,28 @@ p {{ color: var(--tinta-2); max-width: 70ch; }}
 .dato-lbl {{ font-size: 13px; color: var(--tinta-3); margin-top: 6px; }}
 .dato.alerta {{ color: var(--negativo); }}
 
+/* --- Selector segmentado (cambiar la métrica de un gráfico) --- */
+.selector {{
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--superficie-2); border: 1px solid var(--linea);
+  border-radius: 10px; margin-bottom: 18px;
+}}
+.selector button {{
+  border: none; background: none; color: var(--tinta-2);
+  font-family: inherit; font-size: 13px; padding: 6px 14px;
+  border-radius: 7px; cursor: pointer; white-space: nowrap;
+}}
+.selector button:hover {{ color: var(--tinta); }}
+.selector button.activo {{
+  background: var(--superficie); color: var(--tinta); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}}
+
+/* Leyenda propia, para no depender de la de Plotly */
+.leyenda {{ display: flex; gap: 20px; font-size: 13px; color: var(--tinta-2); margin-bottom: 4px; }}
+.leyenda span {{ display: inline-flex; align-items: center; gap: 7px; }}
+.leyenda i {{ width: 14px; height: 3px; border-radius: 2px; display: inline-block; }}
+
 /* --- Tablas --- */
 .tabla-scroll {{ overflow-x: auto; -webkit-overflow-scrolling: touch; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
@@ -523,6 +545,31 @@ function mostrar(id, empujarHistorial = true) {{
   document.querySelector(".sidebar").classList.remove("abierta");
   window.scrollTo({{ top: 0, behavior: "instant" }});
   if (empujarHistorial && location.hash !== "#" + id) history.pushState({{ id }}, "", "#" + id);
+}}
+
+/* Cambia qué métrica muestra un gráfico. Las series están todas dibujadas; solo
+   se alterna su visibilidad, que es instantáneo y no vuelve a calcular nada. */
+function cambiarMetrica(idGrafico, indice, boton) {{
+  const g = document.getElementById(idGrafico);
+  if (!g || !g.data) return;
+  const visibles = g.data.map((t) => t._grupo === indice);
+  Plotly.restyle(g, {{ visible: visibles }});
+
+  const ejes = g._metricas && g._metricas[indice];
+  if (ejes) Plotly.relayout(g, ejes);
+
+  boton.parentElement.querySelectorAll("button").forEach((b) => b.classList.remove("activo"));
+  boton.classList.add("activo");
+}}
+
+/* Registra a qué métrica pertenece cada serie y el formato de eje de cada una. */
+function registrarMetricas(idGrafico, grupos, ejes) {{
+  const g = document.getElementById(idGrafico);
+  if (!g || !g.data) return;
+  g.data.forEach((t, i) => {{ t._grupo = grupos[i]; }});
+  g._metricas = ejes;
+  Plotly.restyle(g, {{ visible: g.data.map((t) => t._grupo === 0) }});
+  if (ejes && ejes[0]) Plotly.relayout(g, ejes[0]);
 }}
 
 function alternarMenu() {{
