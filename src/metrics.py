@@ -438,6 +438,11 @@ def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
     )
     g["pct_especial"] = (100 * g["uds_especial"] / g["uds_total"]).round(1)
     g["pct_especial_eur"] = (100 * g["eur_especial"] / g["eur_total"]).round(1)
+    # La parte a precio completo, explícita: apilada con la especial suma el
+    # total, que es la relación real entre ambas y evita leerlas como series
+    # independientes.
+    g["uds_completo"] = g["uds_total"] - g["uds_especial"]
+    g["eur_completo"] = g["eur_total"] - g["eur_especial"]
     return g
 
 

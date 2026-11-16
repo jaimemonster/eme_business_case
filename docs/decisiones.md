@@ -284,3 +284,25 @@
   colores, que es lo honesto para una serie que cambia de color según el signo.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] El precio especial se apila sobre el precio completo
+- **Contexto:** el gráfico de estacionalidad dibujaba el total en gris y el precio
+  especial superpuesto en azul, con la misma anchura. Dos barras del mismo ancho
+  superpuestas se leen como **dos series independientes**, y no lo son: el azul
+  estaba contenido en el gris.
+- **Decisión:** barras apiladas, con el tramo a precio completo abajo y el especial
+  encima. Los dos trozos suman el total del mes, que es la relación real. La serie
+  pasa a ser «a precio completo», no «total», para que no quepa la duda, y el
+  tooltip muestra además el total.
+- **Reto:** 1.
+- **Impacto:** no cambia ninguna cifra, solo cómo se leen. Evita interpretar el
+  gris como «ventas distintas de las rebajadas» cuando en realidad las incluía.
+- **Estado:** detectado por el usuario al leer el gráfico.
+
+### [2026-11-16] Los ejes de los gráficos usan separadores españoles
+- **Contexto:** Plotly formatea en inglés por defecto y los ejes ponían
+  «40,000 €» donde el resto del informe pone «40.000 €».
+- **Decisión:** `separators=",."` en la plantilla de gráficos: coma decimal y punto
+  para los miles, igual que el texto y las tablas.
+- **Reto:** transversal.
+- **Estado:** confirmado.

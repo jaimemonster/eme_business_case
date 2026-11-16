@@ -350,41 +350,51 @@ def grafico_evolucion(df: pd.DataFrame, div_id: str) -> tuple[str, list[int], li
 
 
 METRICAS_ESPECIAL = [
-    ("uds_especial", "uds_total", "Unidades", " uds"),
-    ("eur_especial", "eur_total", "Facturación", " €"),
+    ("uds_completo", "uds_especial", "Unidades", " uds"),
+    ("eur_completo", "eur_especial", "Facturación", " €"),
 ]
 
 
 def grafico_estacionalidad(df: pd.DataFrame, div_id: str) -> tuple[str, list[int], list[dict]]:
-    """Ventas por mes: el total en gris y la parte a precio especial encima.
+    """Reparto mensual entre precio completo y precio especial.
 
-    El total es el contexto que hace legible la otra serie: sin él, los meses sin
-    campaña no se ven y no se aprecia qué parte del mes fue rebajada. El selector
-    permite leerlo en unidades o en euros, que no cuentan lo mismo: una unidad
-    rebajada factura un 40 % menos.
+    Las barras van **apiladas**, no superpuestas: los dos trozos suman el total
+    del mes. Es la relación real entre ambos, y evita que se lean como dos
+    series independientes, que es justo lo que sugería la versión superpuesta.
+
+    El selector permite leerlo en unidades o en euros, que no cuentan lo mismo:
+    una unidad rebajada factura en torno a un 40 % menos.
     """
     fig = go.Figure()
     grupos: list[int] = []
-    for i, (col_esp, col_tot, _, sufijo) in enumerate(METRICAS_ESPECIAL):
-        fig.add_trace(
-            go.Bar(
-                x=df["mes"], y=df[col_tot], name="Total",
-                marker=dict(color=C["referencia"], line=dict(width=0)),
-                hovertemplate="Total: %{y:,.0f}" + sufijo + "<extra></extra>",
+    for i, (col_completo, col_especial, _, sufijo) in enumerate(METRICAS_ESPECIAL):
+        total = df[col_completo] + df[col_especial]
+        for columna, nombre, color in (
+            (col_completo, "A precio completo", C["referencia"]),
+            (col_especial, "A precio especial", C["acento"]),
+        ):
+            fig.add_trace(
+                go.Bar(
+                    x=df["mes"], y=df[columna], name=nombre,
+                    marker=dict(
+                        color=color,
+                        # Un hueco del color de la tarjeta separa los segmentos:
+                        # se distinguen sin necesidad de dibujarles un borde.
+                        line=dict(color=C["superficie"], width=2),
+                    ),
+                    customdata=total,
+                    hovertemplate=(
+                        nombre + ": %{y:,.0f}" + sufijo
+                        + "<br>Total del mes: %{customdata:,.0f}" + sufijo
+                        + "<extra></extra>"
+                    ),
+                )
             )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=df["mes"], y=df[col_esp], name="A precio especial",
-                marker=dict(color=C["acento"], line=dict(width=0)),
-                hovertemplate="A precio especial: %{y:,.0f}" + sufijo + "<extra></extra>",
-            )
-        )
-        grupos += [i, i]
+            grupos.append(i)
 
     plantilla_grafico(fig, altura=300)
     fig.update_layout(
-        barmode="overlay", bargap=0.3,
+        barmode="stack", bargap=0.3,
         margin=dict(l=0, r=8, t=12, b=8), hovermode="x unified",
     )
     fig.update_xaxes(
@@ -672,11 +682,11 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 Black&nbsp;Friday.</p>
 <div class="card" style="margin-top:16px">
   {selector(div_id, [etiqueta for _, _, etiqueta, _ in METRICAS_ESPECIAL])}
-  {leyenda(("A precio especial", C["acento"]), ("Total vendido", C["referencia"]))}
+  {leyenda(("A precio especial", C["acento"]), ("A precio completo", C["referencia"]))}
   {html_grafico}
   {registrar(div_id, grupos, ejes)}
-  <p class="nota">En euros el precio especial pesa menos que en unidades: cada unidad rebajada factura
-  en torno a un 40&nbsp;% menos.</p>
+  <p class="nota">Los dos trozos de cada barra suman el total del mes. En euros el precio especial pesa
+  menos que en unidades: cada unidad rebajada factura en torno a un 40&nbsp;% menos.</p>
 </div>
 
 <h3 style="margin-top:36px">Dónde pesa el cupón WELCOME10</h3>

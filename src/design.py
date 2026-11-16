@@ -64,7 +64,7 @@ TOKENS = {
 # tema. Plotly escribe los colores en línea, así que no los alcanza el CSS.
 MAPA_TEMA = {
     TOKENS["claro"][k]: TOKENS["oscuro"][k]
-    for k in ("acento", "referencia", "positivo", "negativo", "tinta", "tinta_2", "tinta_3", "linea")
+    for k in ("acento", "referencia", "positivo", "negativo", "tinta", "tinta_2", "tinta_3", "linea", "superficie")
 }
 
 TIPOGRAFIA = (
@@ -81,6 +81,9 @@ def plantilla_grafico(fig: go.Figure, altura: int = 320, margen_izq: int = 0) ->
     """
     c = TOKENS["claro"]
     fig.update_layout(
+        # Formato español: coma decimal y punto para los miles. Plotly usa el
+        # inglés por defecto y quedaba "40,000 €" en los ejes.
+        separators=",.",
         height=altura,
         margin=dict(l=margen_izq, r=8, t=8, b=8),
         paper_bgcolor="rgba(0,0,0,0)",
