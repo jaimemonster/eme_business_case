@@ -408,3 +408,17 @@
   importe de tarifa de esas líneas.
 - **Reto:** 1.
 - **Estado:** aclarado a raíz de la pregunta del usuario.
+
+### [2026-11-16] Los rankings de modelos van por media de 4 semanas, no por la semana suelta
+- **Contexto:** el ranking ordenaba por las unidades de la semana analizada. Con 509
+  unidades repartidas entre 123 modelos, el décimo y el trigésimo se diferencian en
+  dos unidades: un buen modelo con una mala semana caía a la cola.
+- **Decisión:** se ordena por **media de las últimas 4 semanas**, la misma ventana
+  que usa la previsión de demanda, de modo que las dos cifras del informe son
+  consistentes. La columna de la semana se mantiene al lado: es un informe semanal y
+  conviene ver quién se sale de su propio ritmo (`UNIFORM JOGGER OLIVE` promedia 10,8
+  y esta semana vendió 5).
+- **Efecto colateral útil:** la tabla de «modelos con stock y sin ninguna venta» pasa
+  de 14 modelos a **1**. En una semana no vender es normal; en cuatro, no.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.

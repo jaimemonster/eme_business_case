@@ -183,37 +183,52 @@ def ranking_modelos(
     stock: pd.DataFrame,
     periodo: Periodo,
     top_n: int = 10,
+    semanas: int = 4,
 ) -> Dict[str, pd.DataFrame]:
-    """Top y bottom de modelos por ventas, con su sell-through.
+    """Top y bottom de modelos por ritmo de venta, con su sell-through.
 
-    El ranking se hace sobre las ventas **a tarifa** del periodo indicado, pero
-    el sell-through que lo acompaña sale de `ventas_todas` y es el histórico del
-    modelo: es flujo físico y mezclar ambos criterios en la misma columna
-    engañaría.
+    El ranking **no se hace con la semana suelta** sino con la media de las
+    últimas `semanas`. Con 509 unidades repartidas entre 123 modelos, una sola
+    semana es ruido: el décimo y el trigésimo se diferencian en dos unidades, y
+    un buen modelo con una mala semana aparecería en la cola. La media de cuatro
+    semanas es la misma ventana que usa la previsión de demanda, así que las dos
+    cifras del informe son consistentes.
+
+    La columna de la semana se mantiene al lado, porque es un informe semanal y
+    conviene ver si el último dato se sale de su propio ritmo.
     """
-    w = _filtrar_periodo(ventas, periodo)
+    fin = pd.Timestamp(periodo[1])
+    inicio_ventana = pd.Timestamp(periodo[0]) - pd.Timedelta(weeks=semanas - 1)
+    ventana = ventas[(ventas["fecha"] >= inicio_ventana) & (ventas["fecha"] <= fin)]
+    semana = _filtrar_periodo(ventas, periodo)
+
     st = sell_through(ventas_todas, stock).set_index("modelo_id")
 
     agregado = (
-        w.groupby(["modelo_id", "modelo_nombre", "seccion", "categoria"])
+        ventana.groupby(["modelo_id", "modelo_nombre", "seccion", "categoria"])
         .agg(
-            unidades=("unidades", "sum"),
-            facturacion_neta=("facturacion_neta", "sum"),
-            margen=("margen", "sum"),
+            unidades_ventana=("unidades", "sum"),
+            facturacion_ventana=("facturacion_neta", "sum"),
+            margen_ventana=("margen", "sum"),
         )
         .reset_index()
     )
-    agregado["margen_pct"] = (100 * agregado["margen"] / agregado["facturacion_neta"]).round(1)
-    agregado = agregado.merge(st[["unidades_vendidas", "stock_actual", "sell_through_pct"]], on="modelo_id", how="left")
-    agregado = agregado.round(2).sort_values("unidades", ascending=False)
+    agregado["uds_semana_media"] = (agregado["unidades_ventana"] / semanas).round(1)
+    agregado["facturacion_semana_media"] = (agregado["facturacion_ventana"] / semanas).round(2)
+    agregado["margen_pct"] = (100 * agregado["margen_ventana"] / agregado["facturacion_ventana"]).round(1)
 
-    # Los modelos sin ninguna venta en la semana no aparecen en el agregado: hay
-    # que añadirlos para que el "bottom" sea honesto. Un modelo que no vendió
-    # nada es peor noticia que uno que vendió una unidad.
+    uds_semana = semana.groupby("modelo_id")["unidades"].sum().rename("unidades_semana")
+    agregado = agregado.merge(uds_semana, on="modelo_id", how="left").fillna({"unidades_semana": 0})
+    agregado["unidades_semana"] = agregado["unidades_semana"].astype(int)
+
+    agregado = agregado.merge(
+        st[["unidades_vendidas", "stock_actual", "sell_through_pct"]], on="modelo_id", how="left"
+    ).sort_values("uds_semana_media", ascending=False)
+
+    # Los modelos sin ninguna venta en la ventana no están en el agregado: hay
+    # que añadirlos aparte para que el "bottom" no mienta por omisión.
     sin_venta = st[~st.index.isin(agregado["modelo_id"])].reset_index()
     sin_venta = sin_venta[sin_venta["stock_actual"] > 0]
-    # Sin el nombre comercial la tabla es ilegible: nadie reconoce un modelo por
-    # su referencia.
     nombres = (
         ventas_todas[["modelo_id", "modelo_nombre", "seccion", "categoria"]]
         .drop_duplicates("modelo_id")
@@ -222,8 +237,13 @@ def ranking_modelos(
 
     return {
         "top": agregado.head(top_n).reset_index(drop=True),
-        "bottom": agregado.tail(top_n).sort_values("unidades").reset_index(drop=True),
+        "bottom": agregado.tail(top_n).sort_values("uds_semana_media").reset_index(drop=True),
         "sin_venta_en_la_semana": sin_venta.sort_values("stock_actual", ascending=False).reset_index(drop=True),
+        "ventana_ranking": pd.DataFrame([{
+            "semanas": semanas,
+            "desde": inicio_ventana.date(),
+            "hasta": fin.date(),
+        }]),
     }
 
 

@@ -738,15 +738,20 @@ frente al {pct(margen_sin)} de las que no lo llevan.</p></div>"""
 
 def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     top, bottom = m["ranking_top"], m["ranking_bottom"]
+    ventana = m["ranking_ventana_ranking"].iloc[0]
+    desde = pd.Timestamp(ventana["desde"])
+    hasta = pd.Timestamp(ventana["hasta"])
+
     cols = [
         ("modelo_nombre", "Modelo", "texto"),
         ("categoria", "Categoría", "texto"),
-        ("unidades", "Uds semana", "num"),
-        ("facturacion_neta", "Facturación", "eur"),
+        ("uds_semana_media", "Uds/semana", "num1"),
+        ("unidades_semana", "Esta semana", "num"),
+        ("facturacion_semana_media", "Facturación/semana", "eur"),
         ("stock_actual", "Stock", "num"),
         ("sell_through_pct", "Sell-through", "pct"),
     ]
-    t_sin = tabla_html(m["ranking_sin_venta_en_la_semana"].head(8), [
+    t_sin = tabla_html(m["ranking_sin_venta_en_la_semana"], [
         ("modelo_nombre", "Modelo", "texto"),
         ("categoria", "Categoría", "texto"),
         ("unidades_vendidas", "Uds vendidas (histórico)", "num"),
@@ -760,27 +765,41 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         f'({int(r["pct_catalogo"])} % del catálogo)</div></div>'
         for _, r in conc.iterrows()
     )
+    nota_ventana = (
+        f'<p class="nota" style="margin-bottom:14px">El ranking va por <strong>media de las últimas '
+        f'{int(ventana["semanas"])} semanas</strong> ({desde:%d/%m} – {hasta:%d/%m}), no por la semana suelta: '
+        f'con 123 modelos, una semana sola es ruido. La columna «esta semana» está al lado para ver quién se '
+        f'sale de su propio ritmo. El sell-through es histórico del modelo.</p>'
+    )
     cuerpo = f"""
 <div class="card"><h3>Los 10 que más venden</h3>
-<p class="nota" style="margin-bottom:14px">Unidades de la semana. El sell-through es histórico del modelo, no de la semana.</p>
+{nota_ventana}
 {tabla_html(top, cols)}</div>
 
 <div class="card" style="margin-top:20px"><h3>Los 10 que menos venden</h3>
-<p class="nota" style="margin-bottom:14px">De entre los que vendieron algo. Los que no vendieron nada van justo debajo.</p>
+<p class="nota" style="margin-bottom:14px">De entre los que vendieron algo en esas {int(ventana["semanas"])} semanas.</p>
 {tabla_html(bottom, cols)}</div>
 
-<div class="card" style="margin-top:20px"><h3>Modelos con stock y sin ninguna venta esta semana</h3>
-<p class="nota" style="margin-bottom:14px">No aparecen en el ranking porque no vendieron. Son peor noticia que vender una unidad.</p>
+<div class="card" style="margin-top:20px"><h3>Modelos con stock y sin una sola venta en {int(ventana["semanas"])} semanas</h3>
+<p class="nota" style="margin-bottom:14px">No aparecen en ningún ranking porque no vendieron nada. Son peor
+noticia que vender una unidad.</p>
 {t_sin}</div>
 
 <h3 style="margin-top:36px">La facturación está muy concentrada</h3>
 <div class="grid g3" style="margin-top:16px">{tiles}</div>"""
 
+    # La frase se calcula del dato: escrita a mano se queda desfasada en cuanto
+    # cambia el ranking.
+    familias = top["modelo_nombre"].str.split().str[0].value_counts()
+    dos = familias.head(2)
+    peor = bottom.iloc[0]
+
     return seccion(
         "Reto 1 · Pregunta 3", "Qué modelos tiran y cuáles no", "modelos",
-        "Las chaquetas y sudaderas <strong>NOVA</strong> y <strong>BLAZE</strong> copan nueve de los diez "
-        "primeros puestos. En la cola, modelos con una sola unidad vendida y sell-through por debajo del "
-        "30&nbsp;%.",
+        f"Las familias <strong>{dos.index[0]}</strong> y <strong>{dos.index[1]}</strong> copan "
+        f"<strong>{int(dos.sum())} de los diez primeros</strong> puestos, casi todo chaqueta y sudadera. "
+        f"En la cola, modelos que no llegan a una unidad por semana: el último vende "
+        f"{num(peor['uds_semana_media'], 1)} uds/semana y tiene {num(peor['stock_actual'])} en almacén.",
         cuerpo,
     )
 
@@ -954,6 +973,15 @@ def _seccion_glosario() -> str:
             "sell-through  =  unidades vendidas / (unidades vendidas + stock actual)",
             "NOVA BOMBER GREY MELANGE: 105 vendidas y 43 en stock → 105 / 148 = 70,9 %. "
             "Por encima del 70 % funciona; por debajo del 30 % es candidato a rebaja.",
+        ),
+        termino(
+            "Uds/semana",
+            "El ritmo de venta de un modelo: unidades vendidas en las últimas cuatro semanas dividido "
+            "entre cuatro. Es la cifra con la que se ordenan los rankings, y la misma que alimenta la "
+            "previsión de demanda y las alertas de stock.",
+            "uds/semana  =  unidades de las últimas 4 semanas / 4",
+            "Se usa la media y no la semana suelta porque con 123 modelos una sola semana es ruido: "
+            "un buen modelo con una mala semana aparecería en la cola del ranking.",
         ),
         termino(
             "Cobertura",
