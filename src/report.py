@@ -21,6 +21,7 @@ import plotly.io
 import plotly.offline
 
 from . import config, design
+from .metrics import UMBRAL_EXCESO_SEMANAS
 from .design import TOKENS, kpi, plantilla_grafico
 
 C = TOKENS["claro"]
@@ -829,6 +830,8 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     cg = m["cobertura_global"].iloc[0]
     rot, exc = m["rotura_por_modelo"], m["exceso_por_modelo"]
     valor_pvp = m["exceso_a_pvp"].iloc[0]["valor_pvp"]
+    umbral, objetivo = UMBRAL_EXCESO_SEMANAS, config.COBERTURA_OBJETIVO_SEMANAS
+    n_exceso = len(exc)
 
     # La tabla se lee de izquierda a derecha como una resta: de estas tallas
     # esperamos vender tanto, tenemos tanto, y falta esto.
@@ -874,13 +877,18 @@ stock del modelo entero: el número que haría pensar que está sano.
 Las 12 primeras de {len(rot)}.</p></div>
 
 <h3 style="margin-top:36px">Modelos con exceso de stock</h3>
-<p>Ordenados por <strong>capital inmovilizado</strong>, no por semanas de cobertura: la cobertura se
-dispara en productos baratos que casi no rotan.</p>
+<p>Un modelo entra aquí si su cobertura supera las <strong>{umbral} semanas</strong>, el doble de la
+cobertura objetivo. El umbral es decisión nuestra, pero da casi igual dónde se ponga: entre 8 y 16 semanas
+salen los mismos {n_exceso} modelos, y hay que irse a un año entero para bajar de la mitad del catálogo
+(<em>Asunciones</em> lleva la tabla completa).</p>
+<p>Por eso la lista va ordenada por <strong>capital inmovilizado</strong> y no por cobertura: la cobertura
+se dispara en productos baratos que casi no rotan, y lo que decide dirección es cuánto dinero hay parado.</p>
 <div class="card" style="margin-top:16px">{g_exc}
 <p class="nota">Los diez modelos con más dinero parado, valorado a coste.</p></div>
 <div class="card" style="margin-top:20px">{t_exc}
-<p class="nota">Las 12 primeras de {len(exc)}. <strong>Unidades sobrantes</strong> = stock − demanda
-semanal × 8 semanas de cobertura objetivo: lo que queda por encima de lo que la empresa quiere tener.
+<p class="nota">Las 12 primeras de {len(exc)}. Ojo, son dos parámetros distintos: las {umbral} semanas
+deciden <em>quién entra</em> en la lista, y las {objetivo} de cobertura objetivo deciden <em>cuánto sobra</em>.
+<strong>Unidades sobrantes</strong> = stock − demanda semanal × {objetivo} semanas.
 <strong>Capital parado</strong> = esas unidades <strong>a coste</strong>, no a PVP. Es el dinero que ya se
 pagó al proveedor y sigue en la estantería; valorado a precio de venta serían {eur(valor_pvp)}, pero ese
 dinero no se ha gastado. El umbral de exceso está en las <em>Asunciones</em>.</p></div>"""
