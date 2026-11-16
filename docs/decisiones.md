@@ -359,3 +359,20 @@
   Sobre el histórico completo: 19.727 → 17.867 unidades y margen del 71,5 % al 72,6 %.
 - **Reto:** 1 y 2.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] El descuento del cupón se resta una sola vez, en la facturación
+- **Contexto:** el nombre «a precio completo» inducía a pensar que la facturación se
+  registra a tarifa y el descuento se descuenta después, en el margen.
+- **Aclaración:** no es así. `facturacion_neta = unidades × PVP − descuento` ya va
+  neta de **todos** los descuentos de la línea, el cupón incluido, y el margen se
+  calcula sobre esa cifra. El descuento no se resta dos veces. El efecto del cupón se
+  ve en el margen **porcentual**, que baja porque la facturación cae y el coste no.
+- **Medido en la semana:** las líneas con cupón dejan un **70,8 %** de margen frente
+  al **73,0 %** de las que no lo llevan. El cupón deja de ingresar **333 €** sobre
+  34.826 € de facturación.
+- **Decisión:** se añade al informe la columna «descuento dado» por mercado y la
+  comparación de márgenes, para poder ponerle precio al cupón. Y se aclara que
+  «a precio completo» es una etiqueta de canal —todo lo que no es liquidación— e
+  incluye las ventas con cupón.
+- **Reto:** 1.
+- **Estado:** aclarado a raíz de la pregunta del usuario; no cambia ningún cálculo.

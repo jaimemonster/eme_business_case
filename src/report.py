@@ -668,9 +668,12 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         ("mercado", "Mercado", "texto"),
         ("unidades", "Unidades", "num"),
         ("facturacion_neta", "Facturación", "eur"),
-        ("peso_pct", "Peso", "pct"),
         ("pct_promocion", "Con WELCOME10", "pct"),
+        ("coste_cupon", "Descuento dado", "eur2"),
     ])
+
+    margen_promo = m["margen_cupon"].iloc[0]["margen_pct_con_cupon"]
+    margen_sin = m["margen_cupon"].iloc[0]["margen_pct_sin_cupon"]
 
     div_id = "g-especial"
     html_grafico, grupos, ejes = grafico_estacionalidad(m["estacionalidad_especial"], div_id)
@@ -690,13 +693,20 @@ Black&nbsp;Friday.</p>
   {leyenda(("A precio especial", C["acento"]), ("A precio completo", C["referencia"]))}
   {html_grafico}
   {registrar(div_id, grupos, ejes)}
-  <p class="nota">Los dos trozos de cada barra suman el total del mes. En euros el precio especial pesa
+  <p class="nota">«A precio completo» es toda la venta que no es liquidación, e incluye las líneas con
+  cupón WELCOME10. Los dos trozos de cada barra suman el total del mes. En euros el precio especial pesa
   menos que en unidades: cada unidad rebajada factura en torno a un 40&nbsp;% menos.</p>
 </div>
 
 <h3 style="margin-top:36px">Dónde pesa el cupón WELCOME10</h3>
-<p>El cupón descuenta un 10&nbsp;% y lo tratamos como venta a precio completo, no como precio especial.</p>
-<div class="card" style="margin-top:16px">{t_promo}</div>"""
+<p>El cupón descuenta un 10&nbsp;% sobre tarifa. Cuenta como venta ordinaria, no como precio especial:
+son cosas distintas, un cupón de bienvenida y una liquidación al 40&nbsp;%. <strong>El descuento ya está
+restado de la facturación</strong>, así que el margen lo absorbe solo una vez. La última columna es lo
+que el cupón deja de ingresar.</p>
+<div class="card" style="margin-top:16px">{t_promo}
+<p class="nota">Esta semana el cupón cuesta <strong>{eur(merc["coste_cupon"].sum(), 2)}</strong> sobre
+{eur(merc["facturacion_neta"].sum())} de facturación. El margen de las líneas con cupón es del
+{pct(margen_promo)} frente al {pct(margen_sin)} de las que no lo llevan.</p></div>"""
 
     return seccion(
         "Reto 1 · Pregunta 2", "Cómo se reparte, y qué se vendió rebajado", "reparto",
@@ -901,17 +911,21 @@ def _seccion_glosario() -> str:
         ),
         termino(
             "Facturación neta",
-            "Lo que entra en caja: el precio de venta por las unidades, menos el descuento aplicado. "
-            "Es «neta» por el descuento, no por el IVA.",
+            "Lo que entra en caja: el precio de venta por las unidades, menos <strong>todos</strong> los "
+            "descuentos aplicados a la línea, incluido el cupón WELCOME10. Es «neta» por el descuento, "
+            "no por el IVA.",
             "facturación neta  =  unidades × PVP unitario − descuento",
-            "Ejemplo real: 1 × 95,00 € − 0,00 € = 95,00 €.",
+            "Ejemplo real con cupón: 2 × 145,00 € = 290,00 € de bruto, menos 29,00 € de cupón, "
+            "son 261,00 € de facturación neta. Los 29 € no entran en facturación en ningún momento.",
         ),
         termino(
             "Margen y margen %",
             "Lo que queda después de pagar el producto al proveedor. Es margen <strong>de producto</strong>: "
             "no descuenta envíos, devoluciones logísticas, marketing ni estructura.",
             "margen    =  facturación neta − unidades × coste unitario\nmargen %  =  margen / facturación neta",
-            "Ejemplo real: 95,00 € − 26,36 € = 68,64 €, es decir un 72,3 %.",
+            "Como parte de la facturación ya descontada, <strong>el descuento se resta una sola vez</strong>: "
+            "no se vuelve a restar en el margen. Siguiendo el ejemplo del cupón: 261,00 € − 69,52 € = 191,48 €. "
+            "El efecto del cupón se ve en el margen <em>porcentual</em>, que baja porque el coste no cambia.",
         ),
         termino(
             "Sell-through",

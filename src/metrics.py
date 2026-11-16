@@ -128,13 +128,17 @@ def desglose_por_dimension(ventas: pd.DataFrame, semana: Periodo, dimension: str
     filas = []
     for valor, grupo in w.groupby(dimension):
         agregado = _agregar(grupo)
-        promocion = grupo[grupo["es_promocion"]]["facturacion_neta"].sum()
+        con_cupon = grupo[grupo["es_promocion"]]
+        promocion = con_cupon["facturacion_neta"].sum()
         filas.append(
             {
                 dimension: valor,
                 **agregado,
                 "peso_pct": round(100 * agregado["facturacion_neta"] / total_facturacion, 1) if total_facturacion else 0.0,
                 "pct_promocion": round(100 * promocion / agregado["facturacion_neta"], 1) if agregado["facturacion_neta"] else 0.0,
+                # Lo que el cupón deja de ingresar. Ya está descontado de la
+                # facturación: se muestra aparte para poder ponerle precio.
+                "coste_cupon": round(con_cupon["descuento"].sum(), 2),
             }
         )
     return pd.DataFrame(filas).sort_values("facturacion_neta", ascending=False).reset_index(drop=True)
@@ -409,6 +413,7 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
             "evolucion_semanal": evolucion_semanal(tarifa),
             "estacionalidad_especial": estacionalidad_precio_especial(ventas),
             "curva_tallas": curva_tallas(tarifa, stock),
+            "margen_cupon": margen_del_cupon(tarifa, semana),
             "fiabilidad_proveedores": fiabilidad_proveedores(compras),
             "sell_through_drop": sell_through_por_drop(ventas, stock, producto),
             "crecimiento": descomposicion_crecimiento(tarifa, semana, config.SEMANA_ANO_ANTERIOR),
@@ -488,6 +493,27 @@ def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
     g["uds_completo"] = g["uds_total"] - g["uds_especial"]
     g["eur_completo"] = g["eur_total"] - g["eur_especial"]
     return g
+
+
+def margen_del_cupon(ventas: pd.DataFrame, semana: Periodo) -> pd.DataFrame:
+    """Qué margen deja una venta con cupón frente a una sin él.
+
+    El descuento del cupón sale de la facturación, así que el margen en euros
+    cae igual; lo que se ve aquí es cuántos puntos de margen cuesta.
+    """
+    w = _filtrar_periodo(ventas, semana)
+
+    def margen_pct(df: pd.DataFrame) -> float:
+        facturacion = df["facturacion_neta"].sum()
+        return round(100 * df["margen"].sum() / facturacion, 1) if facturacion else 0.0
+
+    con, sin = w[w["es_promocion"]], w[~w["es_promocion"]]
+    return pd.DataFrame([{
+        "margen_pct_con_cupon": margen_pct(con),
+        "margen_pct_sin_cupon": margen_pct(sin),
+        "descuento_dado": round(con["descuento"].sum(), 2),
+        "facturacion_con_cupon": round(con["facturacion_neta"].sum(), 2),
+    }])
 
 
 def curva_tallas(ventas: pd.DataFrame, stock: pd.DataFrame, semanas: int = 12) -> pd.DataFrame:
