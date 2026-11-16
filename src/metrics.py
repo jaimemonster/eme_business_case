@@ -74,19 +74,36 @@ def _agregar(df: pd.DataFrame) -> Dict[str, float]:
     }
 
 
-def resumen_semanal(ventas: pd.DataFrame, semana: Periodo) -> pd.DataFrame:
-    """Unidades, facturación neta y margen de una semana, separando precio especial.
+def parte_precio_especial(ventas: pd.DataFrame, semana: Periodo) -> pd.DataFrame:
+    """Qué parte de la venta fue a precio especial, en la semana y en el año.
 
-    Devuelve tres filas: el total, la parte a precio completo y la parte a precio
-    especial. `WELCOME10` cuenta como precio completo (es una venta a tarifa con
-    un cupón), pero se desglosa aparte en `desglose_precio`.
+    Responde literalmente a la pregunta 2 del enunciado. Hace falta tenerlo
+    explícito precisamente porque el resto del informe excluye el precio
+    especial: sin esta tabla, el informe nunca diría cuánto pesa.
+
+    Recibe la tabla **completa**, con el precio especial dentro: es su objeto.
     """
-    w = _filtrar_periodo(ventas, semana)
-    filas = [
-        {"canal": "TOTAL", **_agregar(w)},
-        {"canal": "Precio completo", **_agregar(w[~w["is_special"]])},
-        {"canal": "Precio especial", **_agregar(w[w["is_special"]])},
-    ]
+    fin = pd.Timestamp(semana[1])
+    periodos = {
+        "Semana analizada": _filtrar_periodo(ventas, semana),
+        f"Año {fin.year} hasta la fecha": ventas[
+            (ventas["fecha"] >= pd.Timestamp(year=fin.year, month=1, day=1)) & (ventas["fecha"] <= fin)
+        ],
+        "Todo el histórico": ventas,
+    }
+    filas = []
+    for nombre, df in periodos.items():
+        especial = df[df["is_special"]]
+        uds, eur = df["unidades"].sum(), df["facturacion_neta"].sum()
+        filas.append({
+            "periodo": nombre,
+            "unidades": int(uds),
+            "uds_especial": int(especial["unidades"].sum()),
+            "pct_uds": round(100 * especial["unidades"].sum() / uds, 1) if uds else 0.0,
+            "facturacion_neta": round(eur, 2),
+            "eur_especial": round(especial["facturacion_neta"].sum(), 2),
+            "pct_eur": round(100 * especial["facturacion_neta"].sum() / eur, 1) if eur else 0.0,
+        })
     return pd.DataFrame(filas)
 
 
@@ -351,15 +368,10 @@ def alertas_stock(
     )
 
     exceso = _marcar_exceso(por_modelo, producto)
-    sin_rotacion = por_modelo[
-        (por_modelo["demanda_semanal"] == 0) & (por_modelo["stock_disponible"] > 0)
-    ].sort_values("stock_disponible", ascending=False)
-
     return {
         "rotura_por_modelo": rotura.reset_index(drop=True),
         "rotura_por_sku": en_rotura_sku.sort_values("deficit", ascending=False).reset_index(drop=True),
         "exceso_por_modelo": exceso.reset_index(drop=True),
-        "sin_rotacion": sin_rotacion.reset_index(drop=True),
         "cobertura_global": _cobertura_global(por_modelo),
         "exceso_a_pvp": pd.DataFrame([{"valor_pvp": round(exceso["valor_pvp"].sum(), 0)}]),
     }
@@ -433,9 +445,8 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
     semana = config.SEMANA_ACTUAL
 
     metricas: Dict[str, pd.DataFrame] = {
-        # El resumen semanal es la excepción deliberada: su objeto es enseñar el
-        # reparto entre tarifa y precio especial, así que necesita la tabla entera.
-        "resumen_semanal": resumen_semanal(ventas, semana),
+        # Necesita la tabla entera: su objeto es justo el precio especial.
+        "parte_precio_especial": parte_precio_especial(ventas, semana),
         "comparativa": comparativa_semanas(
             tarifa, semana, config.SEMANA_ANTERIOR, config.SEMANA_ANO_ANTERIOR
         ),
@@ -469,9 +480,20 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
             "concentracion": concentracion_ventas(tarifa),
             "sensibilidad_umbral": sensibilidad_umbral_exceso(tarifa, stock, compras, producto),
             "resumen_limpieza": tablas["resumen_limpieza"],
+            "catalogo": pd.DataFrame([{
+                "modelos": producto["modelo_id"].nunique(),
+                "skus": len(producto),
+                "tallas_por_modelo": round(len(producto) / producto["modelo_id"].nunique(), 1),
+            }]),
         }
     )
 
+    # Se vacía el directorio antes de escribir: si no, una métrica que se
+    # elimina del código deja su parquet ahí para siempre y el directorio acaba
+    # contando una historia que ya no es la del informe.
+    config.DIR_PROCESSED.mkdir(parents=True, exist_ok=True)
+    for viejo in config.DIR_PROCESSED.glob("*.parquet"):
+        viejo.unlink()
     for nombre, df in metricas.items():
         storage.guardar_tabla(df, nombre, config.DIR_PROCESSED)
     return metricas

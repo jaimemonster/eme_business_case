@@ -681,6 +681,25 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     margen_promo = m["margen_cupon"].iloc[0]["margen_pct_con_cupon"]
     margen_sin = m["margen_cupon"].iloc[0]["margen_pct_sin_cupon"]
 
+    esp = m["parte_precio_especial"]
+    ano = esp.iloc[1]
+    pct_uds_ano, pct_eur_ano = num(ano["pct_uds"], 1), num(ano["pct_eur"], 1)
+    # El porcentaje va en la misma celda que el absoluto: con una columna por
+    # cada uno, la tabla no cabía en el ancho de la página.
+    esp = esp.assign(
+        uds_esp=[f'{num(u)} <span style="color:var(--tinta-3)">· {num(p, 1)} %</span>'
+                 for u, p in zip(esp["uds_especial"], esp["pct_uds"])],
+        eur_esp=[f'{eur(e)} <span style="color:var(--tinta-3)">· {num(p, 1)} %</span>'
+                 for e, p in zip(esp["eur_especial"], esp["pct_eur"])],
+    )
+    t_especial = tabla_html(esp, [
+        ("periodo", "Periodo", "texto"),
+        ("unidades", "Uds totales", "num"),
+        ("uds_esp", "A precio especial", "crudo"),
+        ("facturacion_neta", "Facturación", "eur"),
+        ("eur_esp", "A precio especial", "crudo"),
+    ], destacar=[0])
+
     div_id = "g-especial"
     html_grafico, grupos, ejes = grafico_estacionalidad(m["estacionalidad_especial"], div_id)
 
@@ -691,9 +710,14 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 </div>
 <div class="card" style="margin-top:20px"><h3>Por sección</h3>{t_sec}</div>
 
-<h3 style="margin-top:36px">El precio especial es estacional</h3>
-<p>Las ventas a precio rebajado se concentran en campañas: rebajas de enero, rebajas de verano y
-Black&nbsp;Friday.</p>
+<h3 style="margin-top:36px">Qué parte se vendió a precio especial</h3>
+<p>Ninguna esta semana. Como el resto del informe excluye el precio especial, esta tabla es el único
+sitio donde aparece su peso: en lo que va de año es el {pct_uds_ano}&nbsp;% de las unidades pero solo el
+{pct_eur_ano}&nbsp;% de la facturación, porque cada unidad rebajada ingresa un 40&nbsp;% menos.</p>
+<div class="card" style="margin-top:16px">{t_especial}</div>
+
+<h3 style="margin-top:36px">Y se concentra en campañas</h3>
+<p>Rebajas de enero, rebajas de verano y Black&nbsp;Friday. Fuera de esas ventanas es prácticamente cero.</p>
 <div class="card" style="margin-top:16px">
   {selector(div_id, [etiqueta for _, _, etiqueta, _ in METRICAS_ESPECIAL])}
   {leyenda(("A precio especial", C["acento"]), ("A precio completo", C["referencia"]))}
@@ -760,8 +784,17 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     mejor, peor = top.iloc[0], bottom.iloc[0]
     familias = top["modelo_nombre"].str.split().str[0].value_counts().head(2)
 
+    g_top = grafico(_barras_horizontales(
+        top["modelo_nombre"], top["unidades_semana"],
+        [f"{num(u)} uds  ·  {num(a)} la semana anterior"
+         for u, a in zip(top["unidades_semana"], top["unidades_semana_anterior"])],
+    ))
+
     cuerpo = f"""
-<div class="card"><h3>Los 10 que más venden</h3>
+<div class="card">{g_top}
+<p class="nota">Unidades vendidas en la semana analizada, con la semana anterior al lado.</p></div>
+
+<div class="card" style="margin-top:20px"><h3>Los 10 que más venden</h3>
 <p class="nota" style="margin-bottom:14px">Unidades de la semana analizada. Al lado, la semana anterior y
 lo que lleva vendido el modelo en 2025, para saber si el dato de la semana es su ritmo normal.
 El sell-through es de toda la vida del modelo.</p>
@@ -811,6 +844,10 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         ("deficit_unidades", "Faltan", "num1"),
         ("stock_modelo", "Stock del modelo", "num"),
     ])
+    g_exc = grafico(_barras_horizontales(
+        exc.head(10)["modelo_nombre"], exc.head(10)["capital_inmovilizado"],
+        [f"{eur(c)}  ·  {num(u)} uds" for c, u in zip(exc.head(10)["capital_inmovilizado"], exc.head(10)["unidades_exceso"])],
+    ))
     t_exc = tabla_html(exc.head(12), [
         ("modelo_nombre", "Modelo", "texto"),
         ("stock_disponible", "Stock", "num"),
@@ -839,7 +876,9 @@ Las 12 primeras de {len(rot)}.</p></div>
 <h3 style="margin-top:36px">Modelos con exceso de stock</h3>
 <p>Ordenados por <strong>capital inmovilizado</strong>, no por semanas de cobertura: la cobertura se
 dispara en productos baratos que casi no rotan.</p>
-<div class="card" style="margin-top:16px">{t_exc}
+<div class="card" style="margin-top:16px">{g_exc}
+<p class="nota">Los diez modelos con más dinero parado, valorado a coste.</p></div>
+<div class="card" style="margin-top:20px">{t_exc}
 <p class="nota">Las 12 primeras de {len(exc)}. <strong>Unidades sobrantes</strong> = stock − demanda
 semanal × 8 semanas de cobertura objetivo: lo que queda por encima de lo que la empresa quiere tener.
 <strong>Capital parado</strong> = esas unidades <strong>a coste</strong>, no a PVP. Es el dinero que ya se
@@ -857,6 +896,7 @@ def _seccion_insights(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     del crecimiento vive en la pregunta 1 y la concentración de catálogo en la 3.
     """
     tallas = m["curva_tallas"]
+    n_rotura = len(m["rotura_por_modelo"])
     prov = m["fiabilidad_proveedores"]
     drops = m["sell_through_drop"]
     atascado = drops[(drops["semanas_vida"] > 20) & (drops["sell_through_pct"] < 40)]
@@ -870,7 +910,7 @@ def _seccion_insights(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 
     cuerpo = f"""
 <h3>1 · El almacén tiene las tallas equivocadas</h3>
-<p>Explica la paradoja de la pregunta 4: hay stock de sobra y aun así 37 modelos van a romper.
+<p>Explica la paradoja de la pregunta 4: hay stock de sobra y aun así {n_rotura} modelos van a romper.
 Faltan <strong>{num(abs(talla_m["desvio_uds"]))} unidades de la M</strong>, la talla que más se vende, y
 sobran <strong>{num(sobran)}</strong> repartidas sobre todo en XL y XXL.</p>
 <div class="card" style="margin-top:16px">{grafico(grafico_curva_tallas(tallas))}
@@ -905,7 +945,7 @@ natural para Black&nbsp;Friday, a dos o tres semanas.</p></div>"""
     )
 
 
-def _seccion_glosario() -> str:
+def _seccion_glosario(catalogo: pd.Series) -> Dict[str, str]:
     """Qué significa cada término, con su fórmula y un ejemplo real."""
     terminos = [
         termino(
@@ -914,7 +954,8 @@ def _seccion_glosario() -> str:
             "Un <strong>SKU</strong> es el modelo en una talla concreta: lo que está físicamente en la estantería "
             "y lo que se vende o se agota.",
             "NOVA BOMBER + GREY MELANGE  =  1 modelo\n  └─ EME095-GRE-XS / S / M / L / XL  =  5 SKUs",
-            "En este catálogo: 123 modelos y 579 SKUs, unas 4,7 tallas por modelo.",
+            f"En este catálogo: {num(catalogo['modelos'])} modelos y {num(catalogo['skus'])} SKUs, "
+            f"unas {num(catalogo['tallas_por_modelo'], 1)} tallas por modelo.",
         ),
         termino(
             "Facturación neta",
@@ -1323,7 +1364,7 @@ def construir_informe(
         _seccion_modelos(metricas),
         _seccion_stock(metricas),
         _seccion_insights(metricas),
-        _seccion_glosario(),
+        _seccion_glosario(metricas['catalogo'].iloc[0]),
         _seccion_asunciones(metricas),
         pagina_decisiones(ejemplos, metricas["resumen_limpieza"]),
     ]

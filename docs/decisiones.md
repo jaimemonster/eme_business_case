@@ -499,3 +499,34 @@
 - **Drops:** etiquetas del eje en dos líneas en vez de giradas 45°.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] Revisión de coherencia del Reto 1
+Repaso sistemático de lo entregado frente a lo que pide el enunciado. Los hallazgos
+y lo que se hizo con cada uno:
+
+1. **Faltaba responder literalmente a «qué parte se vendió a precio especial».**
+   Al excluir el precio especial de todo el análisis, el informe dejó de decir cuánto
+   pesa. Se añade una tabla en la pregunta 2 con la semana, el año en curso y el
+   histórico: 0 % esta semana, **10,1 % de las unidades y 6,2 % de la facturación en
+   2025**. La diferencia entre ambos porcentajes es el propio descuento.
+2. **Dos de las cuatro páginas de respuesta no tenían ningún gráfico**, y el enunciado
+   dice que valorará que el informe sea lo más visual posible. Se añade un gráfico de
+   barras a la pregunta 3 (top 10 de la semana) y otro a la pregunta 4 (capital parado).
+   Ahora todas las páginas de respuesta tienen al menos uno.
+3. **Métricas calculadas y nunca mostradas:** `resumen_semanal` y `sin_rotacion`. La
+   primera se sustituye por la tabla del punto 1; la segunda se elimina. `rotura_por_sku`
+   se conserva aunque no se muestre: es el detalle por talla que respalda la tabla por
+   modelo.
+4. **Ficheros huérfanos en `data/processed`:** quedaban parquets de métricas ya
+   eliminadas del código. El pipeline vacía el directorio antes de escribir.
+5. **Cifras escritas a mano que podían quedarse obsoletas:** «37 modelos» y «123
+   modelos y 579 SKUs» pasan a calcularse del dato.
+6. **`notas_calidad_datos.md` decía 119 modelos** cuando el informe dice 123. La
+   documentación contradecía al entregable; corregido.
+
+**Comprobado y correcto:** las cuatro preguntas y sus piezas obligatorias están; el
+hero cuadra con los tres desgloses al céntimo; el stock de la pregunta 3 coincide con
+el de la 4 y con la tabla limpia; `demanda − stock − en camino = déficit` en las 37
+filas de rotura; `stock − demanda × 8 = uds sobrantes` y `× coste = capital parado`;
+el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el texto
+(100 % regalo, 40 % especial, 10 % cupón) salen del dato.

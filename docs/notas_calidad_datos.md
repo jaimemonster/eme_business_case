@@ -24,7 +24,7 @@ condiciona el Reto 2.
 | Tabla | Filas crudas | Filas limpias | Periodo | Observaciones |
 |-------|--------------|---------------|---------|---------------|
 | VENTAS | 18.292 | **17.708** | 2024-01-15 → 2025-11-09 | −25 duplicadas, −559 regalos |
-| PRODUCTO | 579 | 579 | — | 119 modelos, 2 secciones, 6 categorías, 12 drops |
+| PRODUCTO | 579 | 579 | — | **123 modelos**, 2 secciones, 6 categorías, 12 drops |
 | STOCK | 580 | **579** | corte 2025-11-09 | −1 SKU sin catálogo |
 | COMPRAS | 723 | 723 | 2024-01-05 → 2025-12-28 | 168 sin fecha real de llegada |
 
@@ -87,9 +87,9 @@ producto con coste por encima del PVP.
 | Regla | Efecto medido |
 |-------|---------------|
 | 1 · `influencers` = regalo | **559 líneas excluidas** de todo análisis de venta (561 crudas, 2 eran duplicadas). Descuentan el 100 %: son regalos de verdad. |
-| 2 · `special` = precio especial | **1.679 líneas** marcadas `is_special`, con ~40 % de descuento medio. |
+| 2 · `special` = precio especial | **1.679 líneas** marcadas `is_special`, con ~40 % de descuento medio. Quedan **fuera de todo el análisis comercial** y se analizan aparte. |
 | 3 · Llegada efectiva | **555 compras** usan fecha real; **168** caen a la estimada. |
-| 4 · Modelo = producto + color | **119 modelos** sobre 579 SKUs (4,9 tallas por modelo de media). |
+| 4 · Modelo = producto + color | **123 modelos** sobre 579 SKUs (4,7 tallas por modelo de media). El identificador usa la referencia del SKU, no el nombre comercial: cuatro productos distintos compartían nombre y color. |
 
 ## Hallazgos de negocio
 
