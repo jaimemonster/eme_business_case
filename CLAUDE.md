@@ -105,8 +105,10 @@ mismos días de la semana.
 
 ## Convenciones de trabajo
 
-- **Stack**: Python + pandas. Informe del Reto 1 en **HTML autocontenido con Plotly**
-  (un solo fichero, sin dependencias externas al abrirlo).
+- **Stack**: Python + pandas. Informe del Reto 1 en **HTML autocontenido con Plotly**:
+  un único fichero `.html` que se abre con doble clic, **sin servidor y sin conexión**.
+  Plotly va embebido en el propio fichero. Es navegable por páginas/secciones, pero
+  no es una app: no hay `localhost` ni backend que levantar.
 - **`data/raw` nunca se modifica.** Es de solo lectura.
 - Flujo de datos: `data/raw` → `clean.py` → `data/interim/*.parquet` →
   `metrics.py` / `forecast.py` / `replenishment.py` → `data/processed/*.parquet` →
@@ -125,8 +127,16 @@ decisiones tomadas en ese reto: qué se decidió, por qué, y qué impacto tiene
 cifras que el lector acaba de ver. El objetivo es que nadie tenga que fiarse de un
 número sin saber cómo se ha construido.
 
-- El informe HTML del Reto 1 lleva una sección **"Decisiones y supuestos"** y otra de
-  **"Calidad de los datos"** (resumen de lo que se arregló y lo que no).
+- El informe HTML del Reto 1 lleva una **página propia de "Decisiones y calidad de
+  datos"**, separada del cuerpo del informe. Cada decisión se muestra **plegada**
+  (solo el titular); al pulsarla se despliega:
+  1. **Qué pasaba** — el problema detectado, con su volumen.
+  2. **Un ejemplo real** — filas concretas del dato original, para poder verlo.
+  3. **Qué se decidió y por qué** — incluidas las alternativas descartadas.
+  4. **Impacto** — qué cifra del informe cambia por esta decisión.
+
+  Se implementa con `<details>`/`<summary>` de HTML nativo: sin JavaScript, para que
+  el fichero siga siendo autocontenido y funcione con solo abrirlo.
 - La propuesta de reposición del Reto 2 lleva una **hoja/pestaña de decisiones** con
   los parámetros usados y la lógica del cálculo.
 - La hoja de ruta del Reto 3 cierra con los **supuestos** sobre los que se ha priorizado.
