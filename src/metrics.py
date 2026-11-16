@@ -405,6 +405,11 @@ def evolucion_semanal(ventas: pd.DataFrame, n_semanas: int = 26) -> pd.DataFrame
 
     g = reciente.merge(anterior, on=["anio_iso", "semana_iso"], how="left", suffixes=("", "_ly"))
     g["margen_pct"] = (100 * g["margen"] / g["facturacion_neta"]).round(1)
+
+    # Variación interanual de cada métrica, semana a semana.
+    for columna in ("unidades", "facturacion_neta", "margen"):
+        previo = g[f"{columna}_ly"]
+        g[f"{columna}_yoy"] = (100 * (g[columna] - previo) / previo).where(previo > 0).round(1)
     return g.reset_index(drop=True)
 
 

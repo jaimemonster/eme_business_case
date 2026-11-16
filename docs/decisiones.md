@@ -268,3 +268,19 @@
   se muestran todos los paneles, uno por página.
 - **Reto:** transversal.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] La variación interanual va en un panel propio, no en un segundo eje
+- **Contexto:** hace falta ver el YoY en el gráfico de evolución, junto a las dos
+  series (este año y el anterior).
+- **Opciones consideradas:** un segundo eje vertical con el porcentaje sobre las
+  mismas líneas. **Descartada**: la alineación entre dos escalas es arbitraria, así
+  que un gráfico de doble eje inventa correlaciones que no están en el dato.
+- **Decisión:** dos paneles con el mismo eje de tiempo. Arriba las dos series en su
+  unidad; abajo la variación interanual en barras, con su propio eje en porcentaje.
+  Además, el tooltip de la línea de este año incluye la variación, que es la pregunta
+  que uno se hace justo al comparar las dos series.
+- **Color:** verde para subidas y rojo para bajadas, siempre con el signo delante para
+  que el color no sea el único portador. La muestra de la leyenda va partida en dos
+  colores, que es lo honesto para una serie que cambia de color según el signo.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.

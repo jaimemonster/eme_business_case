@@ -16,6 +16,7 @@ from typing import Dict, Iterable, Sequence
 
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import plotly.io
 import plotly.offline
 
@@ -96,12 +97,20 @@ def selector(div_id: str, opciones: Sequence[str]) -> str:
     return f'<div class="selector">{botones}</div>'
 
 
-def leyenda(*entradas: tuple[str, str]) -> str:
-    """Leyenda propia, con más control tipográfico que la de Plotly."""
-    partes = "".join(
-        f'<span><i style="background:{color}"></i>{texto}</span>' for texto, color in entradas
-    )
-    return f'<div class="leyenda">{partes}</div>'
+def leyenda(*entradas) -> str:
+    """Leyenda propia, con más control tipográfico que la de Plotly.
+
+    Una entrada puede llevar dos colores: entonces la muestra se parte en dos,
+    que es lo honesto para una serie que cambia de color según el signo.
+    """
+    partes = []
+    for texto, color in entradas:
+        fondo = (
+            f"linear-gradient(90deg, {color[0]} 50%, {color[1]} 50%)"
+            if isinstance(color, tuple) else color
+        )
+        partes.append(f'<span><i style="background:{fondo}"></i>{texto}</span>')
+    return f'<div class="leyenda">{"".join(partes)}</div>'
 
 
 def registrar(div_id: str, grupos: Sequence[int], ejes: Sequence[dict]) -> str:
@@ -259,14 +268,24 @@ METRICAS_EVOLUCION = [
 def grafico_evolucion(df: pd.DataFrame, div_id: str) -> tuple[str, list[int], list[dict]]:
     """Evolución semanal frente a la misma semana del año anterior.
 
-    Dibuja las tres métricas (seis series) y deja visible solo la primera: el
-    selector alterna la visibilidad, que es instantáneo y no recalcula nada.
+    Dos paneles con el mismo eje de tiempo: arriba las dos series en su unidad
+    (euros o unidades), abajo la variación interanual en porcentaje. Van
+    separados a propósito: meter un porcentaje y unos euros en el mismo eje
+    obligaría a un segundo eje vertical, y la alineación entre dos escalas es
+    arbitraria, así que inventa correlaciones que no están en el dato.
 
-    El año anterior va en gris de contexto y el actual en el color de acento.
-    No es decorativo: es el patrón de énfasis, y la identidad la lleva además la
-    leyenda, no solo el color.
+    Dibuja las tres métricas y deja visible solo la primera: el selector alterna
+    la visibilidad, que es instantáneo y no recalcula nada.
+
+    El año anterior va en gris de contexto y el actual en el color de acento. Es
+    el patrón de énfasis, y la identidad la lleva además la leyenda. En las
+    barras, verde y rojo distinguen subida de bajada, siempre con el signo
+    delante para que el color no sea el único portador.
     """
-    fig = go.Figure()
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True,
+        row_heights=[0.68, 0.32], vertical_spacing=0.08,
+    )
     grupos: list[int] = []
     for i, (columna, _, _, sufijo) in enumerate(METRICAS_EVOLUCION):
         fig.add_trace(
@@ -275,26 +294,56 @@ def grafico_evolucion(df: pd.DataFrame, div_id: str) -> tuple[str, list[int], li
                 mode="lines", name="Año anterior",
                 line=dict(color=C["referencia"], width=2, shape="spline", smoothing=0.5),
                 hovertemplate="Año anterior: %{y:,.0f}" + sufijo + "<extra></extra>",
-            )
+            ),
+            row=1, col=1,
         )
         fig.add_trace(
             go.Scatter(
                 x=df["inicio_semana"], y=df[columna],
                 mode="lines", name="Este año",
                 line=dict(color=C["acento"], width=2.5, shape="spline", smoothing=0.5),
-                hovertemplate="Este año: %{y:,.0f}" + sufijo + "<extra></extra>",
-            )
+                # La variación va en el propio tooltip de la línea: es la
+                # pregunta que uno se hace justo al comparar las dos series.
+                customdata=df[f"{columna}_yoy"],
+                hovertemplate=(
+                    "Este año: %{y:,.0f}" + sufijo
+                    + "<br>Variación interanual: %{customdata:+.1f} %<extra></extra>"
+                ),
+            ),
+            row=1, col=1,
         )
         grupos += [i, i]
 
-    plantilla_grafico(fig, altura=320)
-    fig.update_layout(margin=dict(l=0, r=16, t=12, b=8), hovermode="x unified")
+    for i, (columna, _, _, _) in enumerate(METRICAS_EVOLUCION):
+        yoy = df[f"{columna}_yoy"]
+        fig.add_trace(
+            go.Bar(
+                x=df["inicio_semana"], y=yoy, name="Variación interanual",
+                marker=dict(
+                    color=[C["positivo"] if v >= 0 else C["negativo"] for v in yoy.fillna(0)],
+                    line=dict(width=0),
+                ),
+                hovertemplate="Variación interanual: %{y:+.1f} %<extra></extra>",
+            ),
+            row=2, col=1,
+        )
+        grupos.append(i)
+
+    plantilla_grafico(fig, altura=420)
+    fig.update_layout(margin=dict(l=0, r=16, t=12, b=8), hovermode="x unified", bargap=0.45)
+
     meses = df["inicio_semana"].dt.to_period("M").drop_duplicates()
     marcas = [m.to_timestamp() for m in meses]
     fig.update_xaxes(
         tickmode="array", tickvals=marcas,
         ticktext=[MESES_CORTOS[m.month - 1] for m in marcas],
+        showgrid=False, zeroline=False, showline=False, ticks="",
+        tickfont=dict(size=12, color=C["tinta_3"]),
     )
+    # El eje de la variación siempre es porcentaje, así que no cambia con el
+    # selector; solo cambia el de arriba.
+    fig.update_yaxes(ticksuffix=" %", zeroline=True, zerolinecolor=C["linea"],
+                     zerolinewidth=1, row=2, col=1)
     ejes = [{"yaxis.ticksuffix": sufijo, "yaxis.tickformat": ",.0f"}
             for _, _, _, sufijo in METRICAS_EVOLUCION]
     return grafico(fig, div_id), grupos, ejes
@@ -565,10 +614,12 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     cuerpo = f"""
 <div class="card">
   {selector(div_id, [etiqueta for _, etiqueta, _, _ in METRICAS_EVOLUCION])}
-  {leyenda(("Este año", C["acento"]), ("Misma semana del año anterior", C["referencia"]))}
+  {leyenda(("Este año", C["acento"]), ("Misma semana del año anterior", C["referencia"]),
+           ("Variación interanual", (C["positivo"], C["negativo"])))}
   {html_grafico}
   {registrar(div_id, grupos, ejes)}
-  <p class="nota">Últimas 26 semanas, comparadas con la misma semana ISO del año anterior.</p>
+  <p class="nota">Arriba, las últimas 26 semanas frente a la misma semana ISO del año anterior.
+  Abajo, la variación interanual de cada una.</p>
 </div>
 <div class="card" style="margin-top:20px">{tabla}</div>
 <h3 style="margin-top:36px">De dónde sale el crecimiento interanual</h3>
