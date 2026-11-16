@@ -720,8 +720,10 @@ que el cupón deja de ingresar.</p>
 y no coinciden porque el cupón no se reparte igual entre producto caro y barato. En Alemania son 9 de 53
 unidades (el {pct(merc[merc.mercado == "DE"].iloc[0]["pct_promocion_uds"])}) pero el
 {pct(merc[merc.mercado == "DE"].iloc[0]["pct_promocion"])} de la facturación.<br>
-<strong>Descuento dado</strong> es el 10&nbsp;% sobre el importe de tarifa de esas líneas, tal como viene
-en el dato original. Esta semana el cupón deja de ingresar
+<strong>Descuento dado</strong> no lo calculamos nosotros: es la columna <code>Descuento (€)</code> del
+Excel, en euros, sumada sobre esas líneas. Se <strong>resta</strong> del importe de tarifa, nunca se suma
+ni se recalcula. Resulta ser el 10&nbsp;% del bruto, pero eso es un hecho del dato, no una fórmula nuestra.
+Esta semana el cupón deja de ingresar
 <strong>{eur(merc["coste_cupon"].sum(), 2)}</strong>, y el margen de sus líneas es del {pct(margen_promo)}
 frente al {pct(margen_sin)} de las que no lo llevan.</p></div>"""
 
@@ -932,8 +934,9 @@ def _seccion_glosario() -> str:
             "descuentos aplicados a la línea, incluido el cupón WELCOME10. Es «neta» por el descuento, "
             "no por el IVA.",
             "facturación neta  =  unidades × PVP unitario − descuento",
-            "Ejemplo real con cupón: 2 × 145,00 € = 290,00 € de bruto, menos 29,00 € de cupón, "
-            "son 261,00 € de facturación neta. Los 29 € no entran en facturación en ningún momento.",
+            "El PVP y el descuento vienen los dos del Excel; el descuento siempre se resta. "
+            "Ejemplo real: 1 × 75,00 € = 75,00 € de bruto, menos 7,50 € de cupón, son 67,50 € de "
+            "facturación neta. Los 7,50 € no entran en facturación en ningún momento.",
         ),
         termino(
             "Margen y margen %",
