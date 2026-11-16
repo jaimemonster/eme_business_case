@@ -481,3 +481,21 @@
   que importa.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] «Más allá del enunciado» se reduce a tres hallazgos, uno por gráfico
+- **Contexto:** la sección tenía cinco insights, cada uno con gráfico **y** tabla
+  diciendo lo mismo, más varios párrafos.
+- **Se eliminan dos por duplicados:** el origen del crecimiento interanual ya está
+  desglosado en la pregunta 1 y la concentración del catálogo en la pregunta 3.
+  Repetirlos alargaba sin añadir.
+- **Se eliminan las tablas:** si el gráfico ya lo dice, la tabla sobra. Queda una
+  frase de conclusión, un gráfico y una nota con la acción.
+- **Curva de tallas:** de dos series de porcentajes a **una sola de desvío**, con el
+  cero en medio. Antes había que restar mentalmente «30,1 % de demanda» menos
+  «22,6 % de stock»; ahora la resta está hecha y se lee «faltan 1.240 M».
+  Un solo color: ni sobrar ni faltar es bueno, así que verde y rojo mentirían.
+- **Proveedores:** la etiqueta de cada barra pasa a llevar también el retraso medio
+  en días, que es el número accionable.
+- **Drops:** etiquetas del eje en dos líneas en vez de giradas 45°.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.

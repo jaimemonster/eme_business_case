@@ -414,45 +414,33 @@ def grafico_estacionalidad(df: pd.DataFrame, div_id: str) -> tuple[str, list[int
 
 
 def grafico_curva_tallas(df: pd.DataFrame) -> go.Figure:
-    """Reparto de la demanda frente al del stock, por talla.
+    """Cuánto se desvía el stock de cada talla respecto a lo que pide la demanda.
 
-    Dos series: la demanda en gris (contexto) y el stock en el color de acento
-    (lo que decidimos nosotros). Es el patrón de énfasis: destacar uno, atenuar
-    el resto. Además lleva leyenda y etiquetas directas, así que la identidad no
-    depende del color.
+    Una sola serie con el cero en medio: a la derecha lo que sobra, a la
+    izquierda lo que falta. Comparar dos series de porcentajes obligaba a hacer
+    la resta mentalmente; así la resta ya está hecha.
+
+    Un solo color a propósito: ni sobrar ni faltar es bueno, así que verde y
+    rojo mentirían. El signo y la etiqueta llevan el significado.
     """
-    fig = go.Figure()
-    fig.add_trace(
+    d = df.iloc[::-1]  # el eje y se dibuja de abajo arriba
+    fig = go.Figure(
         go.Bar(
-            name="Demanda (12 semanas)",
-            x=df["talla"],
-            y=df["pct_demanda"],
-            marker=dict(color=C["referencia"], line=dict(width=0)),
-            hovertemplate="Talla %{x}<br>%{y:.1f} % de la demanda<extra></extra>",
-        )
-    )
-    fig.add_trace(
-        go.Bar(
-            name="Stock en almacén",
-            x=df["talla"],
-            y=df["pct_stock"],
+            x=d["desvio_uds"], y=d["talla"], orientation="h",
             marker=dict(color=C["acento"], line=dict(width=0)),
-            hovertemplate="Talla %{x}<br>%{y:.1f} % del stock<extra></extra>",
+            text=[f"{'+' if v > 0 else ''}{num(v)} uds" for v in d["desvio_uds"]],
+            textposition="outside",
+            textfont=dict(size=12, color=C["tinta_2"]),
+            width=0.6,
+            hovertemplate="Talla %{y}<br>%{text}<extra></extra>",
         )
     )
     plantilla_grafico(fig, altura=300)
-    fig.update_layout(
-        barmode="group",
-        bargap=0.34,
-        bargroupgap=0.08,
-        showlegend=True,
-        legend=dict(
-            orientation="h", yanchor="bottom", y=1.02, x=0,
-            font=dict(size=12, color=C["tinta_2"]),
-        ),
-        margin=dict(l=0, r=8, t=36, b=8),
-    )
-    fig.update_yaxes(ticksuffix=" %")
+    tope = max(abs(d["desvio_uds"].min()), abs(d["desvio_uds"].max())) * 1.45
+    fig.update_xaxes(showgrid=False, showticklabels=False, range=[-tope, tope],
+                     zeroline=True, zerolinecolor=C["linea"], zerolinewidth=1)
+    fig.update_yaxes(showgrid=False, ticklabelstandoff=10)
+    fig.update_layout(margin=dict(l=0, r=8, t=4, b=4), bargap=0.3)
     return fig
 
 
@@ -481,20 +469,26 @@ def grafico_drops(df: pd.DataFrame) -> go.Figure:
         )
     )
     plantilla_grafico(fig, altura=300)
-    fig.update_xaxes(tickangle=-45, tickfont=dict(size=11))
+    # Etiquetas en dos líneas en vez de giradas: se leen sin inclinar la cabeza
+    # y el gráfico no pierde alto por el ángulo.
+    fig.update_xaxes(
+        tickmode="array", tickvals=list(d["drop"]),
+        ticktext=[x.replace(" DROP ", "<br>DROP ") for x in d["drop"]],
+        tickfont=dict(size=11),
+    )
     fig.update_yaxes(ticksuffix=" %", range=[0, 80])
     fig.update_layout(bargap=0.35, margin=dict(l=0, r=8, t=20, b=8))
     return fig
 
 
 def grafico_proveedores(df: pd.DataFrame) -> go.Figure:
-    """Porcentaje de entregas que llegan después de la fecha estimada."""
+    """Puntualidad por proveedor: cuántas entregas llegan tarde y cuánto."""
     d = df.sort_values("pct_tarde", ascending=False)
     return _barras_horizontales(
         d["proveedor"],
         d["pct_tarde"],
-        [f"{v:.0f} %" for v in d["pct_tarde"]],
-        altura=200,
+        [f"{num(p)} % tarde  ·  {num(r, 1)} días de media" for p, r in zip(d["pct_tarde"], d["retraso_medio"])],
+        altura=210,
     )
 
 
@@ -855,83 +849,60 @@ dinero no se ha gastado. El umbral de exceso está en las <em>Asunciones</em>.</
     return seccion("Reto 1 · Pregunta 4", "Qué va a romper y qué sobra", "stock", "", cuerpo)
 
 
-def _seccion_insights(m: Dict[str, pd.DataFrame]) -> str:
-    """Lo que no pide el enunciado pero sale al leer las cuatro respuestas."""
+def _seccion_insights(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
+    """Lo que no pide el enunciado pero sale al leer las cuatro respuestas.
+
+    Tres hallazgos, uno por gráfico, sin tablas que repitan lo que el gráfico ya
+    dice. Se han quitado dos que estaban en el informe por duplicado: el origen
+    del crecimiento vive en la pregunta 1 y la concentración de catálogo en la 3.
+    """
     tallas = m["curva_tallas"]
     prov = m["fiabilidad_proveedores"]
     drops = m["sell_through_drop"]
     atascado = drops[(drops["semanas_vida"] > 20) & (drops["sell_through_pct"] < 40)]
 
-    t_tallas = tabla_html(tallas, [
-        ("talla", "Talla", "texto"),
-        ("demanda", "Demanda 12 sem", "num"),
-        ("pct_demanda", "% demanda", "pct"),
-        ("stock", "Stock", "num"),
-        ("pct_stock", "% stock", "pct"),
-        ("desvio_uds", "Desvío en uds", "num"),
-    ], destacar=[2, 4, 5])
-    t_prov = tabla_html(prov.sort_values("pct_tarde", ascending=False), [
-        ("proveedor", "Proveedor", "texto"),
-        ("entregas", "Entregas", "num"),
-        ("pct_tarde", "Llegan tarde", "pct"),
-        ("retraso_medio", "Retraso medio (días)", "num1"),
-        ("retraso_maximo", "Peor retraso (días)", "num"),
-        ("vencidas", "Vencidas sin confirmar", "num"),
-    ])
-    t_drops = tabla_html(drops, [
-        ("drop", "Drop", "texto"),
-        ("semanas_vida", "Semanas de vida", "num"),
-        ("vendido", "Vendido", "num"),
-        ("stock", "Stock", "num"),
-        ("sell_through_pct", "Sell-through", "pct"),
-        ("capital", "Capital en stock", "eur"),
-    ], destacar=[int(i) for i in atascado.index])
+    talla_m = tallas[tallas["talla"] == "M"].iloc[0]
+    sobran = tallas[tallas["desvio_uds"] > 0]["desvio_uds"].sum()
+    tarde = prov["pct_tarde"].min(), prov["pct_tarde"].max()
+    retraso = prov["retraso_medio"].mean()
+    vencidas = int(prov["vencidas"].sum())
+    d = atascado.iloc[0] if len(atascado) else None
 
-    sobra = tallas[tallas["desvio_uds"] > 0]["desvio_uds"].sum()
-    return seccion("Reto 1 · Más allá del enunciado",
-        "Cinco cosas que los datos dicen sin que nadie las pregunte", "insights",
-        """Las cuatro preguntas del informe se responden solas. Estas cinco salen de mirar
-  <em>por qué</em> salen esos números, y dos de ellas cambian lo que habría que hacer el lunes.""",
-        f"""
+    cuerpo = f"""
+<h3>1 · El almacén tiene las tallas equivocadas</h3>
+<p>Explica la paradoja de la pregunta 4: hay stock de sobra y aun así 37 modelos van a romper.
+Faltan <strong>{num(abs(talla_m["desvio_uds"]))} unidades de la M</strong>, la talla que más se vende, y
+sobran <strong>{num(sobran)}</strong> repartidas sobre todo en XL y XXL.</p>
+<div class="card" style="margin-top:16px">{grafico(grafico_curva_tallas(tallas))}
+<p class="nota">Diferencia entre el stock de cada talla y el que le correspondería si siguiera el reparto
+de la demanda de las últimas 12 semanas. Se arregla en el Reto 2 cambiando la curva de tallas del pedido,
+sin gastar un euro más.</p></div>
 
-  <h3>1 · El almacén tiene las tallas equivocadas</h3>
-  <p>Es la explicación de la paradoja anterior: {num(m["cobertura_global"].iloc[0]["cobertura_global_semanas"], 1)}
-  semanas de cobertura y aun así roturas. La <strong>M es el {pct(tallas[tallas.talla == "M"].iloc[0]["pct_demanda"])}
-  de la demanda y solo el {pct(tallas[tallas.talla == "M"].iloc[0]["pct_stock"])} del stock</strong>. La XXL, al revés:
-  el {pct(tallas[tallas.talla == "XXL"].iloc[0]["pct_demanda"])} de la demanda y el
-  {pct(tallas[tallas.talla == "XXL"].iloc[0]["pct_stock"])} del almacén, cuatro veces y media más de lo que tocaría.
-  Son <strong>{num(sobra)} unidades de más</strong> en las tallas sobrerrepresentadas —casi todas XL y XXL—
-  mientras faltan {num(abs(tallas[tallas.talla == "M"].iloc[0]["desvio_uds"]))} M.</p>
-  <div class="card" style="margin-top:16px">{grafico(grafico_curva_tallas(tallas))}</div>
-  <div class="card" style="margin-top:20px">{t_tallas}</div>
-  <p class="nota">Se arregla en el Reto 2 cambiando la curva de tallas del pedido, sin gastar un euro más.</p>
+<h3 style="margin-top:44px">2 · La fecha de entrega del proveedor no es una previsión</h3>
+<p>No hay un proveedor malo: <strong>los cuatro llegan tarde entre el {num(tarde[0], 0)}&nbsp;% y el
+{num(tarde[1], 0)}&nbsp;% de las veces</strong>, con un retraso medio casi idéntico de
+{num(retraso, 1)} días. Cuando todos fallan igual, el problema es la fecha, no ellos.</p>
+<div class="card" style="margin-top:16px">{grafico(grafico_proveedores(prov))}
+<p class="nota">Además hay <strong>{vencidas} pedidos vencidos sin confirmar</strong>: su fecha estimada
+pasó y no consta que hayan llegado. Acción inmediata y gratis: sumar una semana a toda fecha estimada.</p></div>
 
-  <h3 style="margin-top:44px">2 · La fecha de entrega del proveedor no es una previsión</h3>
-  <p>No hay un proveedor malo: <strong>los cuatro llegan tarde entre el 73&nbsp;% y el 81&nbsp;% de las veces</strong>,
-  con un retraso medio casi idéntico de entre 5 y 6 días. Cuando todos fallan igual, el problema no son ellos:
-  es que la fecha estimada se calcula optimista, en torno a una semana.</p>
-  <div class="card" style="margin-top:16px">{grafico(grafico_proveedores(prov))}
-  <p class="nota">Porcentaje de entregas que llegan después de su propia fecha estimada.</p></div>
-  <div class="card" style="margin-top:20px">{t_prov}</div>
-  <p class="nota">Acción inmediata y gratis: sumar seis días a toda fecha estimada. En el Reto 2 cambia el cálculo
-  de lo que hay realmente en camino.</p>
+<h3 style="margin-top:44px">3 · El drop {d["drop"] if d is not None else "—"} se ha quedado atascado</h3>
+<p>Los drops siguen una curva coherente: cuanto más viejo, más vendido. Uno se sale.
+<strong>{d["drop"] if d is not None else "—"}</strong> lleva {int(d["semanas_vida"]) if d is not None else 0}
+semanas en el mercado y vende peor que drops más nuevos. Son
+<strong>{eur(d["capital"]) if d is not None else "—"}</strong> parados en producto que no arranca.</p>
+<div class="card" style="margin-top:16px">{grafico(grafico_drops(drops))}
+<p class="nota">Sell-through de cada drop, ordenados del más antiguo al más reciente. Es el candidato
+natural para Black&nbsp;Friday, a dos o tres semanas.</p></div>"""
 
-  <h3 style="margin-top:44px">3 · El drop {atascado.iloc[0]["drop"] if len(atascado) else "—"} se ha quedado atascado</h3>
-  <p>Los drops siguen una curva coherente: cuanto más viejo, más vendido. Uno se sale.
-  <strong>{atascado.iloc[0]["drop"] if len(atascado) else "—"}</strong> lleva
-  {int(atascado.iloc[0]["semanas_vida"]) if len(atascado) else 0} semanas en el mercado, nueve más que el siguiente,
-  y vende doce puntos peor. Son <strong>{eur(atascado.iloc[0]["capital"]) if len(atascado) else "—"}</strong> parados
-  en producto que lleva seis meses sin arrancar: el candidato natural para Black&nbsp;Friday.</p>
-  <div class="card" style="margin-top:16px">{grafico(grafico_drops(drops))}</div>
-  <div class="card" style="margin-top:20px">{t_drops}</div>
-
-  <h3 style="margin-top:44px">4 · El crecimiento viene de más clientes, no de cestas más grandes</h3>
-  <p>Ya está desglosado en la pregunta 1: los pedidos crecen un 46,6&nbsp;% y las unidades por pedido se quedan
-  clavadas en 1,1. La captación funciona; <strong>la venta cruzada está sin explotar</strong>.</p>
-
-  <h3 style="margin-top:44px">5 · Dieciséis modelos son la mitad del negocio</h3>
-  <p>Y cuarenta y ocho modelos, el 39&nbsp;% del catálogo, aportan solo el 10&nbsp;% de la facturación. Con el exceso
-  de stock encima, esto apunta a una decisión de surtido, no de reposición.</p>""")
+    return seccion(
+        "Reto 1 · Más allá del enunciado",
+        "Tres cosas que los datos dicen sin que nadie las pregunte",
+        "insights",
+        "Las cuatro preguntas del informe se responden solas. Estas tres salen de mirar <em>por qué</em> "
+        "salen esos números, y las tres cambian algo del Reto 2.",
+        cuerpo,
+    )
 
 
 def _seccion_glosario() -> str:
