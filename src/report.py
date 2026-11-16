@@ -113,6 +113,16 @@ def leyenda(*entradas) -> str:
     return f'<div class="leyenda">{"".join(partes)}</div>'
 
 
+def selector_vista(id_contenedor: str, opciones: Sequence[str]) -> str:
+    """Control segmentado que alterna entre vistas pre-renderizadas."""
+    botones = "".join(
+        f'<button class="{"activo" if i == 0 else ""}" '
+        f"onclick=\"cambiarVista('{id_contenedor}', {i}, this)\">{texto}</button>"
+        for i, texto in enumerate(opciones)
+    )
+    return f'<div class="selector">{botones}</div>'
+
+
 def registrar(div_id: str, grupos: Sequence[int], ejes: Sequence[dict]) -> str:
     """Script que asocia cada serie a su métrica y el formato de eje de cada una."""
     import json
@@ -761,6 +771,16 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         ("indice_ritmo", "Ritmo vs. su año", "indice"),
         ("sell_through_pct", "Sell-through", "pct"),
     ]
+    # La vista de la semana pone esa columna primero: es la que ordena.
+    cols_semana = [
+        ("modelo_nombre", "Modelo", "texto"),
+        ("categoria", "Categoría", "texto"),
+        ("unidades_semana", "Uds esta semana", "num"),
+        ("uds_semana_media", "Ritmo (4 sem)", "num1"),
+        ("uds_ano", "Uds en el año", "num"),
+        ("indice_ritmo", "Ritmo vs. su año", "indice"),
+        ("sell_through_pct", "Sell-through", "pct"),
+    ]
     t_sin = tabla_html(m["ranking_sin_venta_en_la_semana"], [
         ("modelo_nombre", "Modelo", "texto"),
         ("categoria", "Categoría", "texto"),
@@ -776,11 +796,9 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         for _, r in conc.iterrows()
     )
     nota_ventana = (
-        f'<p class="nota" style="margin-bottom:14px">Ordenado por <strong>ritmo de las últimas '
-        f'{int(ventana["semanas"])} semanas</strong> ({desde:%d/%m} – {hasta:%d/%m}). No por la semana suelta, '
-        f'que con 123 modelos es ruido, ni por el acumulado del año, que penaliza a los drops recientes: '
-        f'<strong>el modelo que más vende ahora lleva solo 5 semanas a la venta y en el acumulado sería el '
-        f'25.º</strong>.<br>'
+        f'<p class="nota" style="margin-bottom:14px">Las dos lecturas coinciden en nueve de diez: lo que '
+        f'vendió la semana y lo que lleva vendiendo el último mes ({desde:%d/%m} – {hasta:%d/%m}) dicen casi '
+        f'lo mismo. El ritmo es más estable; la semana es la foto del informe.<br>'
         f'«Ritmo vs. su año» compara el ritmo actual con el que ha llevado ese modelo durante 2025: por encima '
         f'de ×1 acelera, por debajo se desinfla. Los modelos con menos de ocho semanas a la venta no tienen '
         f'histórico con el que compararse.</p>'
@@ -788,10 +806,16 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     cuerpo = f"""
 <div class="card"><h3>Los 10 que más venden</h3>
 {nota_ventana}
-{tabla_html(top, cols)}</div>
+{selector_vista("ranking-top", ["Esta semana", f"Ritmo · últimas {int(ventana['semanas'])} semanas"])}
+<div id="ranking-top">
+  <div class="vista">{tabla_html(m["ranking_top_semana"], cols_semana)}</div>
+  <div class="vista" style="display:none">{tabla_html(top, cols)}</div>
+</div></div>
 
 <div class="card" style="margin-top:20px"><h3>Los 10 que menos venden</h3>
-<p class="nota" style="margin-bottom:14px">De entre los que vendieron algo en esas {int(ventana["semanas"])} semanas.</p>
+<p class="nota" style="margin-bottom:14px">Ordenados por ritmo, no por la semana: esta semana hay
+<strong>28 modelos empatados a una unidad</strong>, así que un «bottom 10» semanal sería un recorte
+arbitrario de ese empate. De entre los que vendieron algo en las últimas {int(ventana["semanas"])} semanas.</p>
 {tabla_html(bottom, cols)}</div>
 
 <div class="card" style="margin-top:20px"><h3>Modelos con stock y sin una sola venta en {int(ventana["semanas"])} semanas</h3>
@@ -804,14 +828,17 @@ noticia que vender una unidad.</p>
 
     # La frase se calcula del dato: escrita a mano se queda desfasada en cuanto
     # cambia el ranking.
-    familias = top["modelo_nombre"].str.split().str[0].value_counts()
+    familias = m["ranking_top_semana"]["modelo_nombre"].str.split().str[0].value_counts()
     dos = familias.head(2)
     peor = bottom.iloc[0]
+    mejor = m["ranking_top_semana"].iloc[0]
 
     return seccion(
         "Reto 1 · Pregunta 3", "Qué modelos tiran y cuáles no", "modelos",
-        f"Las familias <strong>{dos.index[0]}</strong> y <strong>{dos.index[1]}</strong> copan "
-        f"<strong>{int(dos.sum())} de los diez primeros</strong> puestos, casi todo chaqueta y sudadera. "
+        f"El más vendido de la semana es <strong>{mejor['modelo_nombre']}</strong> con "
+        f"{num(mejor['unidades_semana'])} unidades. Las familias <strong>{dos.index[0]}</strong> y "
+        f"<strong>{dos.index[1]}</strong> copan <strong>{int(dos.sum())} de los diez primeros</strong> puestos, "
+        f"casi todo chaqueta y sudadera. "
         f"En la cola, modelos que no llegan a una unidad por semana: el último vende "
         f"{num(peor['uds_semana_media'], 1)} uds/semana y tiene {num(peor['stock_actual'])} en almacén.",
         cuerpo,

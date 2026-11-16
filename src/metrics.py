@@ -262,8 +262,14 @@ def ranking_modelos(
     )
     sin_venta = sin_venta.merge(nombres, on="modelo_id", how="left")
 
+    # El top se ofrece con las dos lecturas. La cola, solo por ritmo: esta
+    # semana hay 28 modelos empatados a una unidad, así que un "bottom 10" de la
+    # semana sería un recorte arbitrario de ese empate.
+    por_semana = agregado.sort_values(["unidades_semana", "uds_semana_media"], ascending=False)
+
     return {
         "top": agregado.head(top_n).reset_index(drop=True),
+        "top_semana": por_semana.head(top_n).reset_index(drop=True),
         "bottom": agregado.tail(top_n).sort_values("uds_semana_media").reset_index(drop=True),
         "sin_venta_en_la_semana": sin_venta.sort_values("stock_actual", ascending=False).reset_index(drop=True),
         "ventana_ranking": pd.DataFrame([{

@@ -445,3 +445,20 @@
   `BLAZE BOMBER GREY MELANGE` lleva 70 uds en el año y va a ×0,12. Vendieron, ya no.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] El top de modelos se ofrece con dos lecturas, y la semana es la de entrada
+- **Contexto:** el informe es semanal y lo más vendido de la semana tiene que estar sí
+  o sí. Ordenar solo por ritmo lo escondía.
+- **Decisión:** el top lleva un selector con dos vistas pre-renderizadas, **«Esta
+  semana»** por defecto y «Ritmo · últimas 4 semanas» a un clic. Las dos muestran las
+  mismas columnas, así que se comparan sin esfuerzo.
+- **Coste real de la duda:** ninguno. Los dos top 10 **coinciden en nueve de diez**;
+  la única diferencia es `RIOT OVERSIZE BROWN` (semana) frente a `UNIFORM JOGGER
+  OLIVE` (ritmo). Discutíamos un puesto.
+- **La cola se queda solo por ritmo:** esta semana hay **28 modelos empatados a una
+  unidad**, así que un «bottom 10» semanal sería un recorte arbitrario de ese empate.
+  Se dice en la propia tabla.
+- **Implementación:** dos tablas en el DOM y un selector que alterna cuál se ve. No se
+  reordena en el cliente: el orden lo decide Python, que es donde está el criterio.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.
