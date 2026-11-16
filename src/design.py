@@ -128,11 +128,20 @@ def _fmt(valor: float, unidad: str) -> str:
     return f"{valor:,.0f}".replace(",", ".")
 
 
-def kpi(titulo: str, valor: float, unidad: str, deltas: Iterable[tuple[str, float]]) -> str:
+def kpi(
+    titulo: str,
+    valor: float,
+    unidad: str,
+    deltas: Iterable[tuple[str, float]],
+    pie: str = "",
+) -> str:
     """Tarjeta de KPI del hero: cifra grande y sus variaciones.
 
     Cada variación lleva flecha, signo y color. La flecha y el signo son la
     codificación secundaria: quien no distinga verde de rojo lee igual el dato.
+
+    `pie` añade una aclaración al final de la tarjeta, para matizar qué incluye
+    la cifra sin obligar a buscarlo en otra página.
     """
     filas = []
     for etiqueta, pct in deltas:
@@ -145,10 +154,11 @@ def kpi(titulo: str, valor: float, unidad: str, deltas: Iterable[tuple[str, floa
             f'<div class="kpi-delta"><span class="{clase}">{signo} {texto} %</span>'
             f'<span class="kpi-delta-lbl">{etiqueta}</span></div>'
         )
+    bloque_pie = f'<div class="kpi-pie">{pie}</div>' if pie else ""
     return (
         f'<div class="kpi"><div class="kpi-tit">{titulo}</div>'
         f'<div class="kpi-val">{_fmt(valor, unidad)}</div>'
-        f'<div class="kpi-deltas">{"".join(filas)}</div></div>'
+        f'<div class="kpi-deltas">{"".join(filas)}</div>{bloque_pie}</div>'
     )
 
 
@@ -303,6 +313,10 @@ p {{ color: var(--tinta-2); max-width: 70ch; }}
 .kpi-delta .pos {{ color: var(--positivo); font-weight: 600; }}
 .kpi-delta .neg {{ color: var(--negativo); font-weight: 600; }}
 .kpi-delta-lbl {{ color: var(--tinta-3); white-space: nowrap; }}
+.kpi-pie {{
+  font-size: 12px; color: var(--tinta-3); line-height: 1.4;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--linea);
+}}
 
 /* --- Cifra destacada dentro de una tarjeta --- */
 .dato {{ font-size: 32px; letter-spacing: -0.02em; line-height: 1.1; }}

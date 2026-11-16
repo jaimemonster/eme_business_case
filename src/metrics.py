@@ -565,6 +565,7 @@ def margen_del_cupon(ventas: pd.DataFrame, semana: Periodo) -> pd.DataFrame:
 
     con, sin = w[w["es_promocion"]], w[~w["es_promocion"]]
     return pd.DataFrame([{
+        "unidades_con_cupon": int(con["unidades"].sum()),
         "margen_pct_con_cupon": margen_pct(con),
         "margen_pct_sin_cupon": margen_pct(sin),
         "descuento_dado": round(con["descuento"].sum(), 2),

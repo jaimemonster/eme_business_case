@@ -571,18 +571,18 @@ def recopilar_ejemplos_decisiones(tablas_crudas: Dict[str, pd.DataFrame]) -> Dic
 # Secciones del informe
 # ---------------------------------------------------------------------------
 
-def _hero(comparativa: pd.DataFrame) -> str:
+def _hero(comparativa: pd.DataFrame, cupon: pd.Series) -> str:
     """Los cuatro KPIs de la semana, con su doble comparativa."""
     f = comparativa.iloc[0]
     tarjetas = [
         kpi("Unidades vendidas", f["unidades"], "uds", [
             ("semana anterior", f["unidades_vs_semana_anterior_pct"]),
             ("misma semana 2024", f["unidades_vs_ano_anterior_pct"]),
-        ]),
+        ], pie=f'De ellas <strong>{num(cupon["unidades_con_cupon"])} con cupón WELCOME10</strong>'),
         kpi("Facturación neta", f["facturacion_neta"], "€", [
             ("semana anterior", f["facturacion_neta_vs_semana_anterior_pct"]),
             ("misma semana 2024", f["facturacion_neta_vs_ano_anterior_pct"]),
-        ]),
+        ], pie=f'Ya descontados <strong>{eur(cupon["descuento_dado"], 2)}</strong> de cupones'),
         kpi("Margen bruto", f["margen"], "€", [
             ("semana anterior", f["margen_vs_semana_anterior_pct"]),
             ("misma semana 2024", f["margen_vs_ano_anterior_pct"]),
@@ -1340,7 +1340,7 @@ def construir_informe(
         pagina_decisiones(ejemplos, metricas["resumen_limpieza"]),
     ]
     # El hero de KPIs encabeza la primera página del Reto 1.
-    paginas[0]["html"] = _hero(metricas["comparativa"]) + paginas[0]["html"]
+    paginas[0]["html"] = _hero(metricas["comparativa"], metricas["margen_cupon"].iloc[0]) + paginas[0]["html"]
 
     paneles = [_panel(p["id"], p["ruta"], p["titulo"], p["html"]) for p in paginas]
     paneles.append(_panel_pendiente(
