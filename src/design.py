@@ -216,7 +216,12 @@ h1 {{ font-size: 40px; font-weight: 600; letter-spacing: -0.025em; margin: 0 0 1
   font-size: 19px; font-weight: 600; letter-spacing: -0.015em;
   line-height: 1.25; margin: 0 0 4px;
 }}
-.sidebar-sub {{ font-size: 12px; color: var(--tinta-3); margin: 0 0 26px; line-height: 1.4; }}
+.sidebar-sub {{ font-size: 12px; color: var(--tinta-3); margin: 0 0 14px; line-height: 1.4; }}
+.sidebar-aviso {{
+  font-size: 11.5px; color: var(--tinta-3); line-height: 1.45; margin: 0 0 22px;
+  padding: 10px 12px; border-radius: 9px;
+  background: var(--superficie-2); border: 1px solid var(--linea);
+}}
 .nav-grupo {{
   font-size: 11px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--tinta-3); margin: 24px 0 8px; padding-left: 12px;

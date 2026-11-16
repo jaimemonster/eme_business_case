@@ -336,3 +336,26 @@
 - **Reto:** 1 y 2.
 - **Estado:** confirmado; se hace explícito en el gráfico y en Asunciones a raíz de
   la pregunta del usuario.
+
+### [2026-11-16] El precio especial queda fuera de todo el análisis comercial
+- **Contexto:** hasta ahora las series de venta lo incluían y solo el forecast lo
+  excluía. Dos criterios opuestos en el mismo informe.
+- **Decisión:** se unifica **excluyéndolo de todo**: KPIs, evolución semanal,
+  desgloses, rankings, concentración, curva de tallas, previsión y alertas de stock
+  usan `metrics.solo_tarifa`. El precio especial se analiza aparte, en la pregunta 2,
+  que es donde el enunciado lo pide. El filtro vive en **una sola función** y el
+  orquestador decide qué tabla recibe cada métrica.
+- **Motivo:** el precio especial es liquidación de campaña. Mezclarlo hace que una
+  semana de rebajas parezca una buena semana de venta y la vuelve incomparable con
+  una semana normal.
+- **Excepción declarada: el sell-through sí lo incluye.** Mide salida física de
+  almacén, no resultado comercial: una unidad rebajada salió del almacén igual que
+  una vendida a tarifa, y el denominador usa el stock actual, que ya refleja esa
+  salida. Excluirla daría un sell-through artificialmente bajo e incoherente consigo
+  mismo. Lo mismo para el sell-through por drop.
+- **Impacto medido:** las tres semanas de la comparativa **no cambian** (ninguna tuvo
+  ventas a precio especial). Sí cambian las nueve semanas de campaña de julio y
+  agosto, que caen a la mitad: la meseta de verano era rebajas, no venta ordinaria.
+  Sobre el histórico completo: 19.727 → 17.867 unidades y margen del 71,5 % al 72,6 %.
+- **Reto:** 1 y 2.
+- **Estado:** confirmado con el usuario.

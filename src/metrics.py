@@ -30,6 +30,24 @@ def _orden_talla(talla: str) -> int:
 UMBRAL_EXCESO_SEMANAS = 2 * config.COBERTURA_OBJETIVO_SEMANAS
 
 
+def solo_tarifa(ventas: pd.DataFrame) -> pd.DataFrame:
+    """Ventas a precio completo: deja fuera las de precio especial.
+
+    Es el criterio de TODO el análisis de resultado comercial (KPIs, evolución,
+    desgloses, rankings, previsión de demanda). El precio especial es
+    liquidación de campaña, no venta ordinaria: mezclarlo hace que una semana de
+    rebajas parezca una buena semana de venta a tarifa.
+
+    El precio especial no desaparece del informe: se analiza aparte, en la
+    pregunta 2, y allí sí se usa la tabla completa.
+
+    Las únicas excepciones son las métricas de **flujo físico** —sell-through y
+    sell-through por drop—, donde cuenta toda unidad que salió del almacén,
+    rebajada o no. Están marcadas como tales en su docstring.
+    """
+    return ventas[~ventas["is_special"]]
+
+
 def _filtrar_periodo(ventas: pd.DataFrame, periodo: Periodo) -> pd.DataFrame:
     """Devuelve las líneas de venta dentro del periodo (ambos extremos incluidos)."""
     inicio, fin = (pd.Timestamp(d) for d in periodo)
@@ -98,22 +116,24 @@ def comparativa_semanas(
 
 
 def desglose_por_dimension(ventas: pd.DataFrame, semana: Periodo, dimension: str) -> pd.DataFrame:
-    """Reparto de la semana por mercado, sección o categoría, con el peso del
-    precio especial y de la promoción sobre el total."""
+    """Reparto de la semana por mercado, sección o categoría.
+
+    Recibe ya las ventas a tarifa, así que no lleva columna de precio especial:
+    sería cero por construcción. El peso de la promoción WELCOME10 sí, porque
+    esa sí es venta a tarifa con un cupón encima.
+    """
     w = _filtrar_periodo(ventas, semana)
     total_facturacion = w["facturacion_neta"].sum()
 
     filas = []
     for valor, grupo in w.groupby(dimension):
         agregado = _agregar(grupo)
-        especial = grupo[grupo["is_special"]]["facturacion_neta"].sum()
         promocion = grupo[grupo["es_promocion"]]["facturacion_neta"].sum()
         filas.append(
             {
                 dimension: valor,
                 **agregado,
                 "peso_pct": round(100 * agregado["facturacion_neta"] / total_facturacion, 1) if total_facturacion else 0.0,
-                "pct_precio_especial": round(100 * especial / agregado["facturacion_neta"], 1) if agregado["facturacion_neta"] else 0.0,
                 "pct_promocion": round(100 * promocion / agregado["facturacion_neta"], 1) if agregado["facturacion_neta"] else 0.0,
             }
         )
@@ -131,6 +151,12 @@ def sell_through(
     Si `periodo` es None se calcula sobre **todo el histórico de vida del modelo**,
     que es la lectura útil en moda: cuánto se ha colocado de lo que se compró.
     Acotarlo a una semana daría cifras minúsculas y sin significado.
+
+    **Esta métrica SÍ incluye el precio especial**, al contrario que el resto del
+    informe. Es medida de flujo físico, no de resultado comercial: una unidad
+    rebajada salió del almacén igual que una vendida a tarifa, y el denominador
+    usa el stock actual, que ya refleja esa salida. Excluirla daría un
+    sell-through artificialmente bajo y, además, incoherente consigo mismo.
     """
     v = _filtrar_periodo(ventas, periodo) if periodo else ventas
     vendido = v.groupby(nivel)["unidades"].sum().rename("unidades_vendidas")
@@ -144,18 +170,20 @@ def sell_through(
 
 def ranking_modelos(
     ventas: pd.DataFrame,
+    ventas_todas: pd.DataFrame,
     stock: pd.DataFrame,
     periodo: Periodo,
     top_n: int = 10,
 ) -> Dict[str, pd.DataFrame]:
     """Top y bottom de modelos por ventas, con su sell-through.
 
-    El ranking se hace sobre el periodo indicado (la semana), pero el
-    sell-through que lo acompaña es el histórico del modelo: mezclar ambos en la
-    misma ventana no diría nada.
+    El ranking se hace sobre las ventas **a tarifa** del periodo indicado, pero
+    el sell-through que lo acompaña sale de `ventas_todas` y es el histórico del
+    modelo: es flujo físico y mezclar ambos criterios en la misma columna
+    engañaría.
     """
     w = _filtrar_periodo(ventas, periodo)
-    st = sell_through(ventas, stock).set_index("modelo_id")
+    st = sell_through(ventas_todas, stock).set_index("modelo_id")
 
     agregado = (
         w.groupby(["modelo_id", "modelo_nombre", "seccion", "categoria"])
@@ -178,7 +206,7 @@ def ranking_modelos(
     # Sin el nombre comercial la tabla es ilegible: nadie reconoce un modelo por
     # su referencia.
     nombres = (
-        ventas[["modelo_id", "modelo_nombre", "seccion", "categoria"]]
+        ventas_todas[["modelo_id", "modelo_nombre", "seccion", "categoria"]]
         .drop_duplicates("modelo_id")
     )
     sin_venta = sin_venta.merge(nombres, on="modelo_id", how="left")
@@ -204,6 +232,8 @@ def alertas_stock(
     Las compras vencidas sin confirmar **no cuentan** como stock en camino: su
     fecha estimada ya pasó y no hay constancia de que hayan llegado.
     """
+    # `ventas` llega ya sin precio especial, así que el filtro propio del
+    # forecast no tiene nada que quitar. Se deja por si se le pasa otra tabla.
     prevision, _ = forecast.generar_forecast(ventas, horizonte_semanas)
     corte = pd.Timestamp(config.FECHA_CORTE_DATOS)
     limite = corte + pd.Timedelta(weeks=horizonte_semanas)
@@ -341,36 +371,49 @@ def _cobertura_global(por_modelo: pd.DataFrame) -> pd.DataFrame:
 
 def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
     """Orquesta el cálculo de todos los KPIs del informe y los persiste en
-    data/processed."""
+    data/processed.
+
+    Aquí se decide qué tabla recibe cada métrica, y es la única decisión que hay
+    que entender para leer el informe:
+
+    - `tarifa`  (sin precio especial) → todo el resultado comercial: KPIs,
+      evolución, desgloses, rankings, previsión de demanda y alertas de stock.
+    - `ventas`  (completa)            → el análisis del precio especial, que es
+      su objeto, y las métricas de flujo físico (sell-through).
+    """
     from . import storage
 
     ventas, stock, compras = tablas["ventas"], tablas["stock"], tablas["compras"]
+    producto = tablas["producto"]
+    tarifa = solo_tarifa(ventas)
     semana = config.SEMANA_ACTUAL
 
     metricas: Dict[str, pd.DataFrame] = {
+        # El resumen semanal es la excepción deliberada: su objeto es enseñar el
+        # reparto entre tarifa y precio especial, así que necesita la tabla entera.
         "resumen_semanal": resumen_semanal(ventas, semana),
         "comparativa": comparativa_semanas(
-            ventas, semana, config.SEMANA_ANTERIOR, config.SEMANA_ANO_ANTERIOR
+            tarifa, semana, config.SEMANA_ANTERIOR, config.SEMANA_ANO_ANTERIOR
         ),
     }
     for dimension in ("mercado", "seccion", "categoria"):
-        metricas[f"desglose_{dimension}"] = desglose_por_dimension(ventas, semana, dimension)
+        metricas[f"desglose_{dimension}"] = desglose_por_dimension(tarifa, semana, dimension)
 
-    metricas.update({f"ranking_{k}": v for k, v in ranking_modelos(ventas, stock, semana).items()})
-    metricas.update(alertas_stock(ventas, stock, compras, tablas["producto"]))
+    metricas.update(
+        {f"ranking_{k}": v for k, v in ranking_modelos(tarifa, ventas, stock, semana).items()}
+    )
+    metricas.update(alertas_stock(tarifa, stock, compras, producto))
 
-    producto = tablas["producto"]
     metricas.update(
         {
-            "evolucion_semanal": evolucion_semanal(ventas),
-            "peso_especial_ventana": peso_precio_especial_en_ventana(ventas),
+            "evolucion_semanal": evolucion_semanal(tarifa),
             "estacionalidad_especial": estacionalidad_precio_especial(ventas),
-            "curva_tallas": curva_tallas(ventas, stock),
+            "curva_tallas": curva_tallas(tarifa, stock),
             "fiabilidad_proveedores": fiabilidad_proveedores(compras),
             "sell_through_drop": sell_through_por_drop(ventas, stock, producto),
-            "crecimiento": descomposicion_crecimiento(ventas, semana, config.SEMANA_ANO_ANTERIOR),
-            "concentracion": concentracion_ventas(ventas),
-            "sensibilidad_umbral": sensibilidad_umbral_exceso(ventas, stock, compras, producto),
+            "crecimiento": descomposicion_crecimiento(tarifa, semana, config.SEMANA_ANO_ANTERIOR),
+            "concentracion": concentracion_ventas(tarifa),
+            "sensibilidad_umbral": sensibilidad_umbral_exceso(tarifa, stock, compras, producto),
             "resumen_limpieza": tablas["resumen_limpieza"],
         }
     )
@@ -412,29 +455,6 @@ def evolucion_semanal(ventas: pd.DataFrame, n_semanas: int = 26) -> pd.DataFrame
         previo = g[f"{columna}_ly"]
         g[f"{columna}_yoy"] = (100 * (g[columna] - previo) / previo).where(previo > 0).round(1)
     return g.reset_index(drop=True)
-
-
-def peso_precio_especial_en_ventana(ventas: pd.DataFrame, n_semanas: int = 26) -> pd.DataFrame:
-    """Qué parte de la ventana del gráfico se vendió a precio especial, este año
-    y el anterior.
-
-    Sirve para poder afirmar en el informe que la comparación interanual es
-    homogénea: si ambos años llevaran proporciones muy distintas de campaña, las
-    dos líneas no serían comparables.
-    """
-    semanas = sorted(ventas["inicio_semana"].unique())[-n_semanas:]
-    inicio, fin = pd.Timestamp(semanas[0]), pd.Timestamp(semanas[-1])
-
-    def peso(desde: pd.Timestamp, hasta: pd.Timestamp) -> float:
-        tramo = ventas[(ventas["fecha"] >= desde) & (ventas["fecha"] <= hasta + pd.Timedelta(days=6))]
-        if not len(tramo):
-            return 0.0
-        return round(100 * tramo.loc[tramo["is_special"], "unidades"].sum() / tramo["unidades"].sum(), 1)
-
-    return pd.DataFrame([{
-        "pct_actual": peso(inicio, fin),
-        "pct_ly": peso(inicio - pd.DateOffset(years=1), fin - pd.DateOffset(years=1)),
-    }])
 
 
 def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
@@ -513,6 +533,9 @@ def sell_through_por_drop(
 
     La antigüedad es imprescindible para leerlo: un drop nuevo con sell-through
     bajo es normal; uno viejo con sell-through bajo está atascado.
+
+    Como el sell-through por modelo, **incluye el precio especial**: mide salida
+    física de almacén. Un drop se puede liquidar, y eso cuenta como colocado.
     """
     vendido = ventas.groupby("drop")["unidades"].sum().rename("vendido")
     disponible = stock.groupby("drop")["stock_disponible"].sum().rename("stock")
