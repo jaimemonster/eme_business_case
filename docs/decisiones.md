@@ -530,3 +530,20 @@ el de la 4 y con la tabla limpia; `demanda − stock − en camino = déficit` e
 filas de rotura; `stock − demanda × 8 = uds sobrantes` y `× coste = capital parado`;
 el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el texto
 (100 % regalo, 40 % especial, 10 % cupón) salen del dato.
+
+### [2026-11-16] El gráfico de la pregunta 3 pasa a ser un mapa del catálogo
+- **Contexto:** se había añadido un gráfico de barras del top 10 para que la página no
+  fuese solo tablas. Decía exactamente lo mismo que la tabla de al lado.
+- **Decisión:** sustituirlo por un **mapa de dispersión** con los 123 modelos: unidades
+  de la semana en el eje X, sell-through en el Y, y el **tamaño del punto igual al
+  stock** que queda. Es lo único que las tablas no pueden enseñar: dónde está cada
+  modelo respecto al resto. Un top 10 ordenado no dice si el décimo está cerca del
+  primero o del montón.
+- **Lo que destapa:** **17 modelos** caen en la esquina de poca venta y poca rotación,
+  con **1.920 unidades** inmovilizadas entre todos. Al escalar el punto por stock, los
+  problemas pesan visualmente: un punto grande abajo a la izquierda es mucho producto
+  parado que además no se vende.
+- **Color:** acento para el catálogo y rojo para esa esquina. Es énfasis, no identidad,
+  y la línea del umbral más la nota dicen lo mismo que el color.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.

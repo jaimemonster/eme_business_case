@@ -273,6 +273,39 @@ def ranking_modelos(
     }
 
 
+def mapa_modelos(
+    ventas: pd.DataFrame,
+    ventas_todas: pd.DataFrame,
+    stock: pd.DataFrame,
+    periodo: Periodo,
+    umbral_sell_through: float = 30.0,
+) -> pd.DataFrame:
+    """Sitúa cada modelo del catálogo por lo que vende y por lo que ha rotado.
+
+    Es lo único que las tablas de la pregunta 3 no pueden enseñar: dónde está
+    cada modelo **respecto al resto**. Un top 10 ordenado no dice si el décimo
+    está cerca del primero o del montón.
+
+    El umbral de sell-through marca la zona de producto que no rota; por debajo
+    del 30 % se considera mala señal (ver glosario).
+    """
+    semana = _filtrar_periodo(ventas, periodo)
+    uds = semana.groupby("modelo_id")["unidades"].sum().rename("uds_semana")
+    st = sell_through(ventas_todas, stock).set_index("modelo_id")
+    nombres = (
+        ventas_todas[["modelo_id", "modelo_nombre", "seccion", "categoria"]]
+        .drop_duplicates("modelo_id").set_index("modelo_id")
+    )
+
+    df = st.join(uds).join(nombres).fillna({"uds_semana": 0}).reset_index()
+    df["rota_poco"] = df["sell_through_pct"] < umbral_sell_through
+    mediana = df["uds_semana"].median()
+    df["vende_poco"] = df["uds_semana"] < mediana
+    df["umbral_sell_through"] = umbral_sell_through
+    df["mediana_uds"] = mediana
+    return df.sort_values("uds_semana", ascending=False).reset_index(drop=True)
+
+
 def alertas_stock(
     ventas: pd.DataFrame,
     stock: pd.DataFrame,
@@ -480,6 +513,7 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
             "concentracion": concentracion_ventas(tarifa),
             "sensibilidad_umbral": sensibilidad_umbral_exceso(tarifa, stock, compras, producto),
             "resumen_limpieza": tablas["resumen_limpieza"],
+            "mapa_modelos": mapa_modelos(tarifa, ventas, stock, semana),
             "catalogo": pd.DataFrame([{
                 "modelos": producto["modelo_id"].nunique(),
                 "skus": len(producto),

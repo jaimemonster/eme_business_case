@@ -445,6 +445,58 @@ def grafico_curva_tallas(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def grafico_mapa_modelos(df: pd.DataFrame) -> go.Figure:
+    """Cada modelo del catálogo situado por lo que vende y por lo que ha rotado.
+
+    El tamaño del punto es el stock que queda, así que los problemas pesan
+    visualmente: un punto grande abajo a la izquierda es mucho producto parado
+    que además no se vende.
+
+    Dos colores de énfasis, no de identidad: en rojo los que caen en la zona de
+    poca rotación y poca venta. La línea del umbral y la nota dicen lo mismo que
+    el color, así que no depende de distinguirlo.
+    """
+    umbral = df["umbral_sell_through"].iloc[0]
+    problema = df["rota_poco"] & df["vende_poco"]
+    tamanos = (df["stock_actual"] / df["stock_actual"].max() * 16 + 7).round(1)
+
+    fig = go.Figure()
+    for mascara, nombre, color in (
+        (~problema, "Resto del catálogo", C["acento"]),
+        (problema, "Ni venden ni rotan", C["negativo"]),
+    ):
+        d = df[mascara]
+        fig.add_trace(
+            go.Scatter(
+                x=d["uds_semana"], y=d["sell_through_pct"],
+                mode="markers", name=nombre,
+                marker=dict(
+                    color=color, size=tamanos[mascara], opacity=0.7,
+                    line=dict(color=C["superficie"], width=1.5),
+                ),
+                customdata=d[["modelo_nombre", "stock_actual"]],
+                hovertemplate=(
+                    "%{customdata[0]}<br>%{x:.0f} uds esta semana<br>"
+                    "Sell-through %{y:.1f} %<br>%{customdata[1]:,.0f} uds en stock<extra></extra>"
+                ),
+            )
+        )
+    plantilla_grafico(fig, altura=360)
+    fig.add_hline(y=umbral, line=dict(color=C["linea"], width=1))
+    fig.add_annotation(
+        x=1, xref="paper", y=umbral, yanchor="bottom", xanchor="right",
+        text=f"sell-through {umbral:.0f} %", showarrow=False,
+        font=dict(size=11, color=C["tinta_3"]),
+    )
+    fig.update_xaxes(
+        title=dict(text="Unidades vendidas esta semana", font=dict(size=12, color=C["tinta_3"])),
+        showgrid=False, range=[-1.2, df["uds_semana"].max() * 1.06],
+    )
+    fig.update_yaxes(ticksuffix=" %")
+    fig.update_layout(margin=dict(l=0, r=8, t=8, b=36))
+    return fig
+
+
 def grafico_drops(df: pd.DataFrame) -> go.Figure:
     """Sell-through por drop, ordenado por antigüedad.
 
@@ -785,15 +837,18 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     mejor, peor = top.iloc[0], bottom.iloc[0]
     familias = top["modelo_nombre"].str.split().str[0].value_counts().head(2)
 
-    g_top = grafico(_barras_horizontales(
-        top["modelo_nombre"], top["unidades_semana"],
-        [f"{num(u)} uds  ·  {num(a)} la semana anterior"
-         for u, a in zip(top["unidades_semana"], top["unidades_semana_anterior"])],
-    ))
+    mapa = m["mapa_modelos"]
+    problema = mapa[mapa["rota_poco"] & mapa["vende_poco"]]
+    g_mapa = grafico(grafico_mapa_modelos(mapa))
 
     cuerpo = f"""
-<div class="card">{g_top}
-<p class="nota">Unidades vendidas en la semana analizada, con la semana anterior al lado.</p></div>
+<div class="card">
+  {leyenda(("Resto del catálogo", C["acento"]), ("Ni venden ni rotan", C["negativo"]))}
+  {g_mapa}
+  <p class="nota">Los {num(len(mapa))} modelos del catálogo. El tamaño del punto es el stock que queda,
+  así que los problemas pesan: abajo a la izquierda hay <strong>{num(len(problema))} modelos</strong> que
+  venden menos que la mediana y no llegan al 30&nbsp;% de sell-through, con
+  <strong>{num(problema["stock_actual"].sum())} unidades</strong> inmovilizadas entre todos.</p></div>
 
 <div class="card" style="margin-top:20px"><h3>Los 10 que más venden</h3>
 <p class="nota" style="margin-bottom:14px">Unidades de la semana analizada. Al lado, la semana anterior y
