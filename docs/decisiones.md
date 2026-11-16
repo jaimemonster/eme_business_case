@@ -321,3 +321,18 @@
 - **Reto:** 1.
 - **Impacto:** ninguna cifra cambia. Es legibilidad del tooltip.
 - **Estado:** detectado por el usuario.
+
+### [2026-11-16] Las series de venta incluyen el precio especial; la demanda prevista no
+- **Contexto:** dos criterios opuestos conviven en el informe y no se deducía mirando.
+- **Decisión:** los KPIs, la evolución semanal y los desgloses son **venta total**,
+  con el precio especial dentro: la pregunta del enunciado es cuánto se vendió, no
+  cuánto se vendió a tarifa. El reparto entre completo y especial se analiza aparte,
+  en la pregunta 2. En cambio la **demanda prevista lo excluye**, porque una
+  liquidación no es demanda recurrente e inflaría la previsión de un producto que ya
+  no se vende a tarifa.
+- **Comprobación:** en la ventana del gráfico el precio especial es el 11,4 % de las
+  unidades este año y el 11,3 % el anterior, así que la comparación interanual es
+  homogénea. Se calcula con el dato y se imprime en el informe, no se afirma a mano.
+- **Reto:** 1 y 2.
+- **Estado:** confirmado; se hace explícito en el gráfico y en Asunciones a raíz de
+  la pregunta del usuario.

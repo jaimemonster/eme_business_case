@@ -623,7 +623,11 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 </div>"""
 
     div_id = "g-evolucion"
-    html_grafico, grupos, ejes = grafico_evolucion(m["evolucion_semanal"], div_id)
+    evol = m["evolucion_semanal"]
+    html_grafico, grupos, ejes = grafico_evolucion(evol, div_id)
+    peso = m["peso_especial_ventana"].iloc[0]
+    pct_actual = num(peso["pct_actual"], 1)
+    pct_ly = num(peso["pct_ly"], 1)
     cuerpo = f"""
 <div class="card">
   {selector(div_id, [etiqueta for _, etiqueta, _, _ in METRICAS_EVOLUCION])}
@@ -632,7 +636,11 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
   {html_grafico}
   {registrar(div_id, grupos, ejes)}
   <p class="nota">Arriba, las últimas 26 semanas frente a la misma semana ISO del año anterior.
-  Abajo, la variación interanual de cada una.</p>
+  Abajo, la variación interanual de cada una.<br>
+  <strong>Estas series son la venta total e incluyen el precio especial</strong>, igual que los KPIs de
+  arriba: la pregunta es cuánto se vendió, no cuánto se vendió a tarifa. El año anterior lo incluye en
+  una proporción muy parecida ({pct_ly}&nbsp;% frente a {pct_actual}&nbsp;%), así que la comparación es
+  homogénea. Ojo con julio y agosto: ahí casi la mitad de las unidades fueron de campaña.</p>
 </div>
 <div class="card" style="margin-top:20px">{tabla}</div>
 <h3 style="margin-top:36px">De dónde sale el crecimiento interanual</h3>
@@ -988,6 +996,10 @@ def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
          "No hay datos de logística, marketing ni estructura. El margen real de contribución será menor."),
         ("WELCOME10", "cuenta como precio completo", MIO,
          "Descuenta un 10 % sobre tarifa, frente al 40 % del precio especial. Mezclarlos distorsionaría el margen del canal."),
+        ("Series de venta", "incluyen el precio especial", MIO,
+         "Los KPIs, la evolución semanal y los desgloses son venta total: la pregunta es cuánto se vendió. El reparto entre completo y especial se analiza aparte, en la pregunta 2."),
+        ("Demanda prevista", "excluye el precio especial", MIO,
+         "Al revés que las series de venta, y a propósito: una liquidación no es demanda recurrente, y contarla inflaría la previsión de un producto que ya no se vende a tarifa."),
         ("Compras vencidas", "no cuentan como stock en camino", MIO,
          "37 pedidos con fecha estimada vencida y sin confirmación de llegada. Contarlos llevaría a reponer de menos."),
         ("Lead time real", "no es medible", VALID,

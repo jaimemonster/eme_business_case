@@ -363,6 +363,7 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
     metricas.update(
         {
             "evolucion_semanal": evolucion_semanal(ventas),
+            "peso_especial_ventana": peso_precio_especial_en_ventana(ventas),
             "estacionalidad_especial": estacionalidad_precio_especial(ventas),
             "curva_tallas": curva_tallas(ventas, stock),
             "fiabilidad_proveedores": fiabilidad_proveedores(compras),
@@ -411,6 +412,29 @@ def evolucion_semanal(ventas: pd.DataFrame, n_semanas: int = 26) -> pd.DataFrame
         previo = g[f"{columna}_ly"]
         g[f"{columna}_yoy"] = (100 * (g[columna] - previo) / previo).where(previo > 0).round(1)
     return g.reset_index(drop=True)
+
+
+def peso_precio_especial_en_ventana(ventas: pd.DataFrame, n_semanas: int = 26) -> pd.DataFrame:
+    """Qué parte de la ventana del gráfico se vendió a precio especial, este año
+    y el anterior.
+
+    Sirve para poder afirmar en el informe que la comparación interanual es
+    homogénea: si ambos años llevaran proporciones muy distintas de campaña, las
+    dos líneas no serían comparables.
+    """
+    semanas = sorted(ventas["inicio_semana"].unique())[-n_semanas:]
+    inicio, fin = pd.Timestamp(semanas[0]), pd.Timestamp(semanas[-1])
+
+    def peso(desde: pd.Timestamp, hasta: pd.Timestamp) -> float:
+        tramo = ventas[(ventas["fecha"] >= desde) & (ventas["fecha"] <= hasta + pd.Timedelta(days=6))]
+        if not len(tramo):
+            return 0.0
+        return round(100 * tramo.loc[tramo["is_special"], "unidades"].sum() / tramo["unidades"].sum(), 1)
+
+    return pd.DataFrame([{
+        "pct_actual": peso(inicio, fin),
+        "pct_ly": peso(inicio - pd.DateOffset(years=1), fin - pd.DateOffset(years=1)),
+    }])
 
 
 def estacionalidad_precio_especial(ventas: pd.DataFrame) -> pd.DataFrame:
