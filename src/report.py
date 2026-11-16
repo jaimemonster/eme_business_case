@@ -333,10 +333,11 @@ def grafico_evolucion(df: pd.DataFrame, div_id: str) -> tuple[str, list[int], li
     fig.update_layout(margin=dict(l=0, r=16, t=12, b=8), hovermode="x unified", bargap=0.45)
 
     meses = df["inicio_semana"].dt.to_period("M").drop_duplicates()
-    marcas = [m.to_timestamp() for m in meses]
+    marcas = [m.to_timestamp() + pd.Timedelta(hours=6) for m in meses]
     fig.update_xaxes(
         tickmode="array", tickvals=marcas,
         ticktext=[MESES_CORTOS[m.month - 1] for m in marcas],
+        hoverformat="Semana del %d/%m/%Y",
         showgrid=False, zeroline=False, showline=False, ticks="",
         tickfont=dict(size=12, color=C["tinta_3"]),
     )
@@ -398,11 +399,13 @@ def grafico_estacionalidad(df: pd.DataFrame, div_id: str) -> tuple[str, list[int
         margin=dict(l=0, r=8, t=12, b=8), hovermode="x unified",
     )
     fig.update_xaxes(
-        tickmode="array", tickvals=list(df["mes"]),
+        tickmode="array",
+        tickvals=[m + pd.Timedelta(hours=6) for m in df["mes"]],
         ticktext=[
             f"{MESES_CORTOS[m.month - 1]}<br>{m.year}" if m.month in (1, 7) else MESES_CORTOS[m.month - 1]
             for m in df["mes"]
         ],
+        hoverformat="%m/%Y",
         tickfont=dict(size=10),
     )
     ejes = [{"yaxis.ticksuffix": sufijo, "yaxis.tickformat": ",.0f"}

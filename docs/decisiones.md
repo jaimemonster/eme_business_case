@@ -306,3 +306,18 @@
   para los miles, igual que el texto y las tablas.
 - **Reto:** transversal.
 - **Estado:** confirmado.
+
+### [2026-11-16] Las marcas del eje temporal se desplazan seis horas
+- **Contexto:** el tooltip del gráfico de evolución ponía «sep» como encabezado en
+  lugar de la semana. No era un error de datos: cuando el punto señalado coincide
+  **exactamente** con una marca del eje, Plotly usa la etiqueta de la marca como
+  encabezado en vez del formato de hover. Las marcas son inicios de mes y las
+  semanas empiezan en lunes, así que la semana del 1 de septiembre de 2025 caía
+  justo encima. Lo mismo pasaba en el gráfico mensual, donde el encabezado perdía
+  el año («ago» sin saber de cuál de los dos).
+- **Decisión:** desplazar las marcas del eje seis horas. Sobre un eje de 26 semanas
+  el desplazamiento es imperceptible y el encabezado pasa a usar el formato de hover:
+  «Semana del 01/09/2025» y «08/2025».
+- **Reto:** 1.
+- **Impacto:** ninguna cifra cambia. Es legibilidad del tooltip.
+- **Estado:** detectado por el usuario.
