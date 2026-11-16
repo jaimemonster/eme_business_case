@@ -834,21 +834,24 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         f'({int(r["pct_catalogo"])} % del catálogo)</div></div>'
         for _, r in conc.iterrows()
     )
-    mejor, peor = top.iloc[0], bottom.iloc[0]
-    familias = top["modelo_nombre"].str.split().str[0].value_counts().head(2)
-
     mapa = m["mapa_modelos"]
     problema = mapa[mapa["rota_poco"] & mapa["vende_poco"]]
+    mediana = mapa["mediana_uds"].iloc[0]
+    umbral_st = mapa["umbral_sell_through"].iloc[0]
     g_mapa = grafico(grafico_mapa_modelos(mapa))
 
     cuerpo = f"""
 <div class="card">
-  {leyenda(("Resto del catálogo", C["acento"]), ("Ni venden ni rotan", C["negativo"]))}
+  {leyenda(("Resto del catálogo", C["acento"]), ("Venden poco y rotan poco", C["negativo"]))}
   {g_mapa}
-  <p class="nota">Los {num(len(mapa))} modelos del catálogo. El tamaño del punto es el stock que queda,
-  así que los problemas pesan: abajo a la izquierda hay <strong>{num(len(problema))} modelos</strong> que
-  venden menos que la mediana y no llegan al 30&nbsp;% de sell-through, con
-  <strong>{num(problema["stock_actual"].sum())} unidades</strong> inmovilizadas entre todos.</p></div>
+  <p class="nota"><strong>Un punto = un modelo.</strong> Cuanto más a la derecha, más vendió esta semana;
+  cuanto más arriba, mayor parte de lo que se compró ya se ha colocado. El tamaño del punto es el stock
+  que queda, así que los problemas pesan en pantalla.<br>
+  <strong>En rojo</strong>, los modelos que cumplen las dos cosas malas a la vez: vendieron
+  {num(mediana)} unidades o menos esta semana —la mitad del catálogo vende más— <em>y</em> están por
+  debajo del {num(umbral_st)}&nbsp;% de sell-through. Son <strong>{num(len(problema))} modelos</strong>
+  con <strong>{num(problema["stock_actual"].sum())} unidades</strong> en el almacén.
+  <strong>En azul</strong>, los {num(len(mapa) - len(problema))} restantes.</p></div>
 
 <div class="card" style="margin-top:20px"><h3>Los 10 que más venden</h3>
 <p class="nota" style="margin-bottom:14px">Unidades de la semana analizada. Al lado, la semana anterior y
@@ -870,13 +873,7 @@ una semana es normal; no vender en {semanas_sin}, con stock en el almacén, no.<
 <div class="grid g3" style="margin-top:16px">{tiles}</div>"""
 
     return seccion(
-        "Reto 1 · Pregunta 3", "Qué modelos tiran y cuáles no", "modelos",
-        f"El más vendido de la semana es <strong>{mejor['modelo_nombre']}</strong> con "
-        f"{num(mejor['unidades_semana'])} unidades, y las familias <strong>{familias.index[0]}</strong> y "
-        f"<strong>{familias.index[1]}</strong> copan {int(familias.sum())} de los diez primeros puestos. "
-        f"En la cola, modelos con una sola venta en la semana y sell-through por debajo del 10&nbsp;%: "
-        f"<strong>{peor['modelo_nombre']}</strong> lleva {num(peor['uds_ano'])} unidades en todo el año y "
-        f"{num(peor['stock_actual'])} en almacén.",
+        "Reto 1 · Pregunta 3", "Qué modelos tiran y cuáles no", "modelos", "",
         cuerpo,
     )
 
