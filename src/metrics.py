@@ -188,73 +188,59 @@ def ranking_modelos(
     ventas_todas: pd.DataFrame,
     stock: pd.DataFrame,
     periodo: Periodo,
+    anterior: Periodo,
     top_n: int = 10,
-    semanas: int = 4,
+    semanas_sin_venta: int = 4,
 ) -> Dict[str, pd.DataFrame]:
-    """Top y bottom de modelos por ritmo de venta, con su sell-through.
+    """Top y bottom de modelos por unidades de la semana, con contexto.
 
-    El ranking **no se hace con la semana suelta** sino con la media de las
-    últimas `semanas`. Con 509 unidades repartidas entre 123 modelos, una sola
-    semana es ruido: el décimo y el trigésimo se diferencian en dos unidades, y
-    un buen modelo con una mala semana aparecería en la cola. La media de cuatro
-    semanas es la misma ventana que usa la previsión de demanda, así que las dos
-    cifras del informe son consistentes.
+    El orden es **las unidades de la semana**, que es lo que un informe semanal
+    tiene que responder. Alrededor van tres cifras que se leen solas: lo que
+    vendió la semana anterior, lo que lleva vendido en el año y su sell-through.
+    Nada de índices: si hay que explicar la columna, la columna no sirve.
 
-    La columna de la semana se mantiene al lado, porque es un informe semanal y
-    conviene ver si el último dato se sale de su propio ritmo.
+    En la cola hay muchos empates a una unidad, así que el desempate es lo
+    vendido en el año: entre dos modelos que vendieron uno, está peor el que
+    menos lleva vendido.
     """
-    fin = pd.Timestamp(periodo[1])
-    inicio_ventana = pd.Timestamp(periodo[0]) - pd.Timedelta(weeks=semanas - 1)
-    ventana = ventas[(ventas["fecha"] >= inicio_ventana) & (ventas["fecha"] <= fin)]
     semana = _filtrar_periodo(ventas, periodo)
+    semana_anterior = _filtrar_periodo(ventas, anterior)
+    fin = pd.Timestamp(periodo[1])
 
     st = sell_through(ventas_todas, stock).set_index("modelo_id")
 
     agregado = (
-        ventana.groupby(["modelo_id", "modelo_nombre", "seccion", "categoria"])
+        semana.groupby(["modelo_id", "modelo_nombre", "seccion", "categoria"])
         .agg(
-            unidades_ventana=("unidades", "sum"),
-            facturacion_ventana=("facturacion_neta", "sum"),
-            margen_ventana=("margen", "sum"),
+            unidades_semana=("unidades", "sum"),
+            facturacion_semana=("facturacion_neta", "sum"),
         )
         .reset_index()
     )
-    agregado["uds_semana_media"] = (agregado["unidades_ventana"] / semanas).round(1)
-    agregado["facturacion_semana_media"] = (agregado["facturacion_ventana"] / semanas).round(2)
-    agregado["margen_pct"] = (100 * agregado["margen_ventana"] / agregado["facturacion_ventana"]).round(1)
 
-    uds_semana = semana.groupby("modelo_id")["unidades"].sum().rename("unidades_semana")
-    agregado = agregado.merge(uds_semana, on="modelo_id", how="left").fillna({"unidades_semana": 0})
-    agregado["unidades_semana"] = agregado["unidades_semana"].astype(int)
-
-    agregado = agregado.merge(
-        st[["unidades_vendidas", "stock_actual", "sell_through_pct"]], on="modelo_id", how="left"
-    )
-
-    # Contexto del año en curso. No sirve para ordenar —penaliza a los drops
-    # recientes, que llevan pocas semanas a la venta— pero sí para saber si el
-    # ritmo actual del modelo es el suyo de siempre o se ha movido.
+    previa = semana_anterior.groupby("modelo_id")["unidades"].sum().rename("unidades_semana_anterior")
     inicio_ano = pd.Timestamp(year=fin.year, month=1, day=1)
-    ano = ventas[(ventas["fecha"] >= inicio_ano) & (ventas["fecha"] <= fin)]
-    por_modelo_ano = ano.groupby("modelo_id").agg(
-        uds_ano=("unidades", "sum"),
-        primera_venta_ano=("fecha", "min"),
+    del_ano = ventas[(ventas["fecha"] >= inicio_ano) & (ventas["fecha"] <= fin)]
+    uds_ano = del_ano.groupby("modelo_id")["unidades"].sum().rename("uds_ano")
+
+    agregado = (
+        agregado.merge(previa, on="modelo_id", how="left")
+        .merge(uds_ano, on="modelo_id", how="left")
+        .merge(st[["unidades_vendidas", "stock_actual", "sell_through_pct"]], on="modelo_id", how="left")
+        .fillna({"unidades_semana_anterior": 0, "uds_ano": 0})
     )
-    semanas_a_la_venta = ((fin - por_modelo_ano["primera_venta_ano"]).dt.days // 7 + 1).clip(lower=1)
-    por_modelo_ano["semanas_a_la_venta"] = semanas_a_la_venta
-    por_modelo_ano["ritmo_ano"] = (por_modelo_ano["uds_ano"] / semanas_a_la_venta).round(1)
+    for col in ("unidades_semana_anterior", "uds_ano"):
+        agregado[col] = agregado[col].astype(int)
 
-    agregado = agregado.merge(por_modelo_ano, on="modelo_id", how="left")
-    agregado["es_nuevo"] = agregado["semanas_a_la_venta"] < SEMANAS_MINIMAS_PARA_COMPARAR
-    agregado["indice_ritmo"] = (
-        (agregado["uds_semana_media"] / agregado["ritmo_ano"]).where(~agregado["es_nuevo"]).round(2)
+    orden = agregado.sort_values(["unidades_semana", "uds_ano"], ascending=False)
+
+    # Los modelos sin ninguna venta reciente no están en el agregado: van en su
+    # propia tabla, porque no vender nada es peor noticia que vender una unidad.
+    desde = pd.Timestamp(periodo[0]) - pd.Timedelta(weeks=semanas_sin_venta - 1)
+    con_venta_reciente = set(
+        ventas[(ventas["fecha"] >= desde) & (ventas["fecha"] <= fin)]["modelo_id"]
     )
-
-    agregado = agregado.sort_values("uds_semana_media", ascending=False)
-
-    # Los modelos sin ninguna venta en la ventana no están en el agregado: hay
-    # que añadirlos aparte para que el "bottom" no mienta por omisión.
-    sin_venta = st[~st.index.isin(agregado["modelo_id"])].reset_index()
+    sin_venta = st[~st.index.isin(con_venta_reciente)].reset_index()
     sin_venta = sin_venta[sin_venta["stock_actual"] > 0]
     nombres = (
         ventas_todas[["modelo_id", "modelo_nombre", "seccion", "categoria"]]
@@ -262,21 +248,11 @@ def ranking_modelos(
     )
     sin_venta = sin_venta.merge(nombres, on="modelo_id", how="left")
 
-    # El top se ofrece con las dos lecturas. La cola, solo por ritmo: esta
-    # semana hay 28 modelos empatados a una unidad, así que un "bottom 10" de la
-    # semana sería un recorte arbitrario de ese empate.
-    por_semana = agregado.sort_values(["unidades_semana", "uds_semana_media"], ascending=False)
-
     return {
-        "top": agregado.head(top_n).reset_index(drop=True),
-        "top_semana": por_semana.head(top_n).reset_index(drop=True),
-        "bottom": agregado.tail(top_n).sort_values("uds_semana_media").reset_index(drop=True),
+        "top": orden.head(top_n).reset_index(drop=True),
+        "bottom": orden.tail(top_n).iloc[::-1].reset_index(drop=True),
         "sin_venta_en_la_semana": sin_venta.sort_values("stock_actual", ascending=False).reset_index(drop=True),
-        "ventana_ranking": pd.DataFrame([{
-            "semanas": semanas,
-            "desde": inicio_ventana.date(),
-            "hasta": fin.date(),
-        }]),
+        "ventana_ranking": pd.DataFrame([{"semanas_sin_venta": semanas_sin_venta}]),
     }
 
 
@@ -462,7 +438,12 @@ def calcular_todas_las_metricas(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd
         metricas[f"desglose_{dimension}"] = desglose_por_dimension(tarifa, semana, dimension)
 
     metricas.update(
-        {f"ranking_{k}": v for k, v in ranking_modelos(tarifa, ventas, stock, semana).items()}
+        {
+            f"ranking_{k}": v
+            for k, v in ranking_modelos(
+                tarifa, ventas, stock, semana, config.SEMANA_ANTERIOR
+            ).items()
+        }
     )
     metricas.update(alertas_stock(tarifa, stock, compras, producto))
 

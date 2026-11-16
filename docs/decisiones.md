@@ -462,3 +462,22 @@
   reordena en el cliente: el orden lo decide Python, que es donde está el criterio.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] Se descarta el índice de ritmo: una tabla, ordenada por la semana
+- **Contexto:** el ranking llegó a tener dos pestañas (semana / ritmo de 4 semanas) y
+  una columna «ritmo vs. su año» con un multiplicador. El usuario no lo entendía.
+- **Decisión:** se elimina. Una sola tabla, **ordenada por las unidades de la
+  semana**, que es lo que un informe semanal tiene que responder. El contexto pasa a
+  ser tres cifras que se leen sin explicación: la **semana anterior**, lo vendido
+  **en el año** y el stock, además del sell-through que pide el enunciado.
+- **Criterio general:** si una columna hay que explicarla en una nota, la columna no
+  sirve en un informe que se lee en cinco minutos un lunes. Prefiero cuatro cifras
+  literales a un índice que resume bien y se entiende mal.
+- **Lo que se pierde y no importa:** el índice detectaba modelos desinflándose
+  (`NEON CREWNECK NAVY` a ×0,63). Comparando «esta semana» con «semana anterior» y
+  con «en el año» se ve lo mismo sin aprender nada nuevo.
+- **La cola:** sigue habiendo muchos empates a una unidad, así que entre ellos ordena
+  lo vendido en el año. Ahora saca modelos con sell-through del 7 %, que es la señal
+  que importa.
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.

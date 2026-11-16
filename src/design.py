@@ -589,18 +589,6 @@ function registrarMetricas(idGrafico, grupos, ejes) {{
   if (ejes && ejes[0]) Plotly.relayout(g, ejes[0]);
 }}
 
-/* Alterna entre vistas pre-renderizadas dentro de un contenedor. Se usa para
-   ofrecer el mismo ranking ordenado de dos maneras sin reordenar en el cliente. */
-function cambiarVista(idContenedor, indice, boton) {{
-  const c = document.getElementById(idContenedor);
-  if (!c) return;
-  c.querySelectorAll(":scope > .vista").forEach((v, i) => {{
-    v.style.display = i === indice ? "block" : "none";
-  }});
-  boton.parentElement.querySelectorAll("button").forEach((b) => b.classList.remove("activo"));
-  boton.classList.add("activo");
-}}
-
 function alternarMenu() {{
   document.querySelector(".sidebar").classList.toggle("abierta");
 }}
