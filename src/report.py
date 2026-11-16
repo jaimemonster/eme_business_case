@@ -677,9 +677,10 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     # todos los mercados y una columna de ceros no informa, confunde.
     t_promo = tabla_html(merc, [
         ("mercado", "Mercado", "texto"),
-        ("unidades", "Unidades", "num"),
+        ("unidades", "Uds totales", "num"),
+        ("unidades_promocion", "Uds con cupón", "num"),
         ("facturacion_neta", "Facturación", "eur"),
-        ("pct_promocion", "Con WELCOME10", "pct"),
+        ("pct_promocion", "% fact. con cupón", "pct"),
         ("coste_cupon", "Descuento dado", "eur2"),
     ])
 
@@ -715,9 +716,14 @@ son cosas distintas, un cupón de bienvenida y una liquidación al 40&nbsp;%. <s
 restado de la facturación</strong>, así que el margen lo absorbe solo una vez. La última columna es lo
 que el cupón deja de ingresar.</p>
 <div class="card" style="margin-top:16px">{t_promo}
-<p class="nota">Esta semana el cupón cuesta <strong>{eur(merc["coste_cupon"].sum(), 2)}</strong> sobre
-{eur(merc["facturacion_neta"].sum())} de facturación. El margen de las líneas con cupón es del
-{pct(margen_promo)} frente al {pct(margen_sin)} de las que no lo llevan.</p></div>"""
+<p class="nota">Ojo con las dos bases: <strong>el porcentaje es sobre facturación, no sobre unidades</strong>,
+y no coinciden porque el cupón no se reparte igual entre producto caro y barato. En Alemania son 9 de 53
+unidades (el {pct(merc[merc.mercado == "DE"].iloc[0]["pct_promocion_uds"])}) pero el
+{pct(merc[merc.mercado == "DE"].iloc[0]["pct_promocion"])} de la facturación.<br>
+<strong>Descuento dado</strong> es el 10&nbsp;% sobre el importe de tarifa de esas líneas, tal como viene
+en el dato original. Esta semana el cupón deja de ingresar
+<strong>{eur(merc["coste_cupon"].sum(), 2)}</strong>, y el margen de sus líneas es del {pct(margen_promo)}
+frente al {pct(margen_sin)} de las que no lo llevan.</p></div>"""
 
     return seccion(
         "Reto 1 · Pregunta 2", "Cómo se reparte, y qué se vendió rebajado", "reparto",

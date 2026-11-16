@@ -391,3 +391,20 @@
   (116 € de media frente a 32 € de una camiseta). Es noviembre.
 - **Reto:** 1.
 - **Estado:** aclarado a raíz de la pregunta del usuario.
+
+### [2026-11-16] El peso del cupón se muestra con sus dos bases
+- **Contexto:** la columna «Con WELCOME10» iba junto a una columna de unidades, y se
+  leía como «este porcentaje de las unidades». Era **sobre facturación**. En España,
+  8,6 % de la facturación frente a 7,7 % de las unidades; en Alemania la brecha es
+  mayor: 14,4 % frente al 17,0 %.
+- **Motivo de la diferencia:** el cupón no se reparte igual entre producto caro y
+  barato, así que el peso en euros y en unidades no coincide.
+- **Decisión:** la tabla muestra las unidades con cupón en bruto y el porcentaje
+  etiquetado explícitamente como «% fact. con cupón». Se descarta añadir también el
+  porcentaje sobre unidades: con las dos cifras al lado se deduce, y la tabla ya no
+  cabía en el ancho de la página.
+- **Cómo se calcula el descuento:** no se recalcula. Es la columna `Descuento (€)`
+  del dato original, sumada sobre las líneas con cupón. Son exactamente el 10 % del
+  importe de tarifa de esas líneas.
+- **Reto:** 1.
+- **Estado:** aclarado a raíz de la pregunta del usuario.

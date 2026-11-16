@@ -130,12 +130,17 @@ def desglose_por_dimension(ventas: pd.DataFrame, semana: Periodo, dimension: str
         agregado = _agregar(grupo)
         con_cupon = grupo[grupo["es_promocion"]]
         promocion = con_cupon["facturacion_neta"].sum()
+        uds_cupon = int(con_cupon["unidades"].sum())
         filas.append(
             {
                 dimension: valor,
                 **agregado,
                 "peso_pct": round(100 * agregado["facturacion_neta"] / total_facturacion, 1) if total_facturacion else 0.0,
+                # Se guardan las dos bases: el peso sobre unidades y sobre
+                # facturación no coinciden, y confundirlos es fácil.
+                "unidades_promocion": uds_cupon,
                 "pct_promocion": round(100 * promocion / agregado["facturacion_neta"], 1) if agregado["facturacion_neta"] else 0.0,
+                "pct_promocion_uds": round(100 * uds_cupon / agregado["unidades"], 1) if agregado["unidades"] else 0.0,
                 # Lo que el cupón deja de ingresar. Ya está descontado de la
                 # facturación: se muestra aparte para poder ponerle precio.
                 "coste_cupon": round(con_cupon["descuento"].sum(), 2),
