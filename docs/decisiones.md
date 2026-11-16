@@ -547,3 +547,20 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   y la línea del umbral más la nota dicen lo mismo que el color.
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-16] El gráfico de la pregunta 4 pasa a ser la composición del stock
+- **Contexto:** el gráfico de barras del capital parado repetía la primera columna de
+  la tabla de al lado. Mismo problema que en la pregunta 3.
+- **Decisión:** sustituirlo por el **reparto de los 123 modelos entre los cuatro
+  estados posibles** de stock, con las unidades de cada grupo.
+- **Lo que destapa, y es el hallazgo de la página:** rotura y exceso no son opuestos.
+  **28 de los 37 modelos en rotura están también en exceso**: una talla a cero y otra
+  con stock para meses, 3.417 unidades entre todos. Es la demostración numérica de
+  que el problema no es cuánto stock hay sino cómo está repartido, que hasta ahora
+  solo se afirmaba.
+- **Tarjetas del encabezado:** las etiquetas eran demasiado escuetas para números que
+  no se explican solos. «semanas de cobertura» pasa a «semanas que aguanta ese stock
+  al ritmo de venta previsto, sin reponer nada; EME quiere tener 8», y «modelos en
+  rotura» a «modelos a los que les faltará alguna talla dentro de 4 semanas».
+- **Reto:** 1.
+- **Estado:** confirmado con el usuario.

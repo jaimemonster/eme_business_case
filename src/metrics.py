@@ -407,7 +407,37 @@ def alertas_stock(
         "exceso_por_modelo": exceso.reset_index(drop=True),
         "cobertura_global": _cobertura_global(por_modelo),
         "exceso_a_pvp": pd.DataFrame([{"valor_pvp": round(exceso["valor_pvp"].sum(), 0)}]),
+        "composicion_stock": composicion_stock(rotura, exceso, stock, producto),
     }
+
+
+def composicion_stock(
+    rotura: pd.DataFrame, exceso: pd.DataFrame, stock: pd.DataFrame, producto: pd.DataFrame
+) -> pd.DataFrame:
+    """Reparte el catálogo entre los cuatro estados posibles de stock.
+
+    Rotura y exceso no son opuestos: un modelo puede tener una talla a cero y
+    otra con stock para un año. Ese grupo es el que demuestra que el problema no
+    es cuánto stock hay, sino cómo está repartido.
+    """
+    en_rotura, en_exceso = set(rotura["modelo_id"]), set(exceso["modelo_id"])
+    todos = set(producto["modelo_id"])
+    por_modelo = stock.groupby("modelo_id")["stock_disponible"].sum()
+
+    grupos = [
+        ("En rotura y en exceso a la vez", en_rotura & en_exceso),
+        ("Solo en rotura", en_rotura - en_exceso),
+        ("Solo en exceso", en_exceso - en_rotura),
+        ("Sin alerta", todos - en_rotura - en_exceso),
+    ]
+    return pd.DataFrame([
+        {
+            "grupo": nombre,
+            "modelos": len(ids),
+            "stock_uds": int(por_modelo.reindex(list(ids)).fillna(0).sum()),
+        }
+        for nombre, ids in grupos
+    ])
 
 
 def _marcar_exceso(por_modelo: pd.DataFrame, producto: pd.DataFrame) -> pd.DataFrame:

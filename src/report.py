@@ -886,6 +886,13 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     rot, exc = m["rotura_por_modelo"], m["exceso_por_modelo"]
     valor_pvp = m["exceso_a_pvp"].iloc[0]["valor_pvp"]
     umbral, objetivo = UMBRAL_EXCESO_SEMANAS, config.COBERTURA_OBJETIVO_SEMANAS
+    comp = m["composicion_stock"]
+    g_comp = grafico(_barras_horizontales(
+        comp["grupo"], comp["stock_uds"],
+        [f"{num(u)} uds  ·  {num(n)} modelos" for u, n in zip(comp["stock_uds"], comp["modelos"])],
+        colores=[C["negativo"]] + [C["acento"]] * (len(comp) - 1),
+        altura=210,
+    ))
     n_exceso = len(exc)
 
     # La tabla se lee de izquierda a derecha como una resta: de estas tallas
@@ -902,10 +909,6 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
         ("deficit_unidades", "Faltan", "num1"),
         ("stock_modelo", "Stock del modelo", "num"),
     ])
-    g_exc = grafico(_barras_horizontales(
-        exc.head(10)["modelo_nombre"], exc.head(10)["capital_inmovilizado"],
-        [f"{eur(c)}  ·  {num(u)} uds" for c, u in zip(exc.head(10)["capital_inmovilizado"], exc.head(10)["unidades_exceso"])],
-    ))
     t_exc = tabla_html(exc.head(12), [
         ("modelo_nombre", "Modelo", "texto"),
         ("stock_disponible", "Stock", "num"),
@@ -916,10 +919,27 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     ])
     cuerpo = f"""
 <div class="grid g4">
-  <div class="card"><div class="dato">{num(cg['stock_total_uds'])}</div><div class="dato-lbl">unidades en almacén</div></div>
-  <div class="card"><div class="dato">{num(cg['cobertura_global_semanas'], 1)}</div><div class="dato-lbl">semanas de cobertura (objetivo: {int(cg['cobertura_objetivo_semanas'])})</div></div>
-  <div class="card"><div class="dato alerta">{len(rot)}</div><div class="dato-lbl">modelos en rotura en 4 semanas · {int(rot['tallas_en_rotura'].sum())} tallas</div></div>
-  <div class="card"><div class="dato">{eur(exc['capital_inmovilizado'].sum())}</div><div class="dato-lbl">capital parado en exceso de stock</div></div>
+  <div class="card"><div class="dato">{num(cg['stock_total_uds'])}</div>
+    <div class="dato-lbl">unidades en el almacén a fecha de cierre</div></div>
+  <div class="card"><div class="dato">{num(cg['cobertura_global_semanas'], 1)}</div>
+    <div class="dato-lbl">semanas que aguanta ese stock al ritmo de venta previsto, sin reponer nada.
+    EME quiere tener {int(cg['cobertura_objetivo_semanas'])}</div></div>
+  <div class="card"><div class="dato alerta">{len(rot)}</div>
+    <div class="dato-lbl">modelos a los que les faltará alguna talla dentro de 4 semanas
+    ({int(rot['tallas_en_rotura'].sum())} tallas en total)</div></div>
+  <div class="card"><div class="dato">{eur(exc['capital_inmovilizado'].sum())}</div>
+    <div class="dato-lbl">valor a coste de las unidades que sobran por encima de las
+    {int(cg['cobertura_objetivo_semanas'])} semanas objetivo</div></div>
+</div>
+
+<div class="card" style="margin-top:28px">
+  {leyenda(("Le falta una talla y le sobra otra", C["negativo"]), ("Resto del catálogo", C["acento"]))}
+  {g_comp}
+  <p class="nota">Los {num(cg["modelos_totales"])} modelos repartidos por su estado de stock. Rotura y
+  exceso no son opuestos: <strong>{num(comp.iloc[0]["modelos"])} modelos están en los dos a la vez</strong>
+  —una talla a cero y otra con stock para meses— y acumulan
+  {num(comp.iloc[0]["stock_uds"])} unidades. Es la prueba de que el problema no es cuánto stock hay,
+  sino cómo está repartido.</p>
 </div>
 
 <h3 style="margin-top:36px">Modelos en rotura en 4 semanas</h3>
@@ -938,9 +958,7 @@ salen los mismos {n_exceso} modelos, y hay que irse a un año entero para bajar 
 (<em>Asunciones</em> lleva la tabla completa).</p>
 <p>Por eso la lista va ordenada por <strong>capital inmovilizado</strong> y no por cobertura: la cobertura
 se dispara en productos baratos que casi no rotan, y lo que decide dirección es cuánto dinero hay parado.</p>
-<div class="card" style="margin-top:16px">{g_exc}
-<p class="nota">Los diez modelos con más dinero parado, valorado a coste.</p></div>
-<div class="card" style="margin-top:20px">{t_exc}
+<div class="card" style="margin-top:16px">{t_exc}
 <p class="nota">Las 12 primeras de {len(exc)}. Ojo, son dos parámetros distintos: las {umbral} semanas
 deciden <em>quién entra</em> en la lista, y las {objetivo} de cobertura objetivo deciden <em>cuánto sobra</em>.
 <strong>Unidades sobrantes</strong> = stock − demanda semanal × {objetivo} semanas.
