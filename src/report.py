@@ -801,6 +801,7 @@ una semana es normal; no vender en {semanas_sin}, con stock en el almacén, no.<
 def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     cg = m["cobertura_global"].iloc[0]
     rot, exc = m["rotura_por_modelo"], m["exceso_por_modelo"]
+    valor_pvp = m["exceso_a_pvp"].iloc[0]["valor_pvp"]
 
     # La tabla se lee de izquierda a derecha como una resta: de estas tallas
     # esperamos vender tanto, tenemos tanto, y falta esto.
@@ -845,8 +846,11 @@ Las 12 primeras de {len(rot)}.</p></div>
 <p>Ordenados por <strong>capital inmovilizado</strong>, no por semanas de cobertura: la cobertura se
 dispara en productos baratos que casi no rotan.</p>
 <div class="card" style="margin-top:16px">{t_exc}
-<p class="nota">Las 12 primeras de {len(exc)}. Unidades sobrantes = stock − demanda semanal × 8 semanas
-de cobertura objetivo. El umbral de exceso está en las <em>Asunciones</em>.</p></div>"""
+<p class="nota">Las 12 primeras de {len(exc)}. <strong>Unidades sobrantes</strong> = stock − demanda
+semanal × 8 semanas de cobertura objetivo: lo que queda por encima de lo que la empresa quiere tener.
+<strong>Capital parado</strong> = esas unidades <strong>a coste</strong>, no a PVP. Es el dinero que ya se
+pagó al proveedor y sigue en la estantería; valorado a precio de venta serían {eur(valor_pvp)}, pero ese
+dinero no se ha gastado. El umbral de exceso está en las <em>Asunciones</em>.</p></div>"""
 
     return seccion("Reto 1 · Pregunta 4", "Qué va a romper y qué sobra", "stock", "", cuerpo)
 

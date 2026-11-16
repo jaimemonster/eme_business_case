@@ -361,6 +361,7 @@ def alertas_stock(
         "exceso_por_modelo": exceso.reset_index(drop=True),
         "sin_rotacion": sin_rotacion.reset_index(drop=True),
         "cobertura_global": _cobertura_global(por_modelo),
+        "exceso_a_pvp": pd.DataFrame([{"valor_pvp": round(exceso["valor_pvp"].sum(), 0)}]),
     }
 
 
@@ -384,6 +385,11 @@ def _marcar_exceso(por_modelo: pd.DataFrame, producto: pd.DataFrame) -> pd.DataF
         exceso["stock_disponible"] - exceso["demanda_semanal"] * config.COBERTURA_OBJETIVO_SEMANAS
     ).round(0)
     exceso["capital_inmovilizado"] = (exceso["unidades_exceso"] * exceso["coste_unitario"]).round(0)
+    # A PVP el mismo exceso vale mucho más, pero ese dinero no se ha gastado: el
+    # capital parado se valora a coste, que es lo que ya se pagó al proveedor.
+    pvp_medio = producto.groupby("modelo_id")["pvp"].mean().rename("pvp_medio")
+    exceso = exceso.merge(pvp_medio, on="modelo_id", how="left")
+    exceso["valor_pvp"] = (exceso["unidades_exceso"] * exceso["pvp_medio"]).round(0)
     return exceso.sort_values("capital_inmovilizado", ascending=False)
 
 
