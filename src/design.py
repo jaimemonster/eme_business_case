@@ -242,6 +242,9 @@ h1 {{ font-size: 40px; font-weight: 600; letter-spacing: -0.025em; margin: 0 0 1
 .nav-item.activo {{ background: var(--acento-suave); color: var(--acento); font-weight: 600; }}
 .nav-item.pendiente {{ color: var(--tinta-3); cursor: default; opacity: 0.65; }}
 .nav-item.pendiente:hover {{ background: none; color: var(--tinta-3); }}
+.nav-item.externo .nav-badge {{
+  color: var(--positivo); border-color: var(--positivo);
+}}
 .nav-badge {{
   margin-left: auto; flex-shrink: 0; align-self: center; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--tinta-3); border: 1px solid var(--linea); border-radius: 20px; padding: 2px 7px;

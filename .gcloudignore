@@ -1,0 +1,12 @@
+# Lo que NO viaja al construir la imagen.
+.git/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+notebooks/
+output/
+data/interim/
+data/processed/
+docs/enunciado/
+.pytest_cache/

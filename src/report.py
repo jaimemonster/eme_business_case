@@ -1346,7 +1346,7 @@ ESTRUCTURA = [
     ),
     (
         "Reto 2 · Reposición",
-        [("reto2", "Propuesta semanal", "pendiente")],
+        [("reto2", "Propuesta semanal", "online")],
     ),
     (
         "Reto 3 · Hoja de ruta",
@@ -1365,13 +1365,24 @@ ESTRUCTURA = [
 PAGINA_INICIAL = "semana"
 
 
+# Páginas que no viven en este fichero sino en un servicio aparte. Se abren en
+# una pestaña nueva para no perder el informe que se está leyendo.
+ENLACES_EXTERNOS = {"reto2": config.URL_SERVICIO_RETO2}
+
+
 def _menu_lateral() -> str:
     """Menú de navegación. Las páginas pendientes se ven, pero no se pulsan."""
     bloques = []
     for grupo, paginas in ESTRUCTURA:
         items = []
         for pid, etiqueta, badge in paginas:
-            if badge:
+            destino = ENLACES_EXTERNOS.get(pid)
+            if destino:
+                items.append(
+                    f'<a class="nav-item externo" href="{destino}" target="_blank" rel="noopener">'
+                    f'{etiqueta}<span class="nav-badge">{badge} ↗</span></a>'
+                )
+            elif badge:
                 items.append(
                     f'<span class="nav-item pendiente">{etiqueta}'
                     f'<span class="nav-badge">{badge}</span></span>'
@@ -1408,6 +1419,32 @@ def _panel(pid: str, grupo: str, titulo: str, cuerpo: str) -> str:
   </div>
   {cuerpo}
   {_siguiente_pagina(pid)}
+</div>"""
+
+
+def _panel_servicio(pid: str, grupo: str, titulo: str, destino: str) -> str:
+    """Página que anuncia un reto que vive fuera de este fichero.
+
+    El Reto 2 no es un informe sino un proceso que se ejecuta solo, así que no
+    tendría sentido congelarlo dentro de este HTML: lo que hay que enseñar es el
+    servicio en marcha, con su historial de ejecuciones.
+    """
+    return f"""
+<div class="panel" id="pag-{pid}">
+  <div class="pag-cabecera"><div class="pag-ruta">{grupo}</div><h1>{titulo}</h1></div>
+  <div class="card">
+    <p>El Reto 2 no es un informe: es un <strong>proceso desplegado</strong> que se ejecuta
+    solo cada día a las 00:00 y deja la propuesta en el Google Sheet que revisa Compras.
+    Por eso vive en su propia dirección en lugar de dentro de este fichero.</p>
+    <p style="margin-top:14px">Allí están la propuesta de la semana, cómo se calcula,
+    las decisiones que la explican, el esquema de cómo funcionaría en producción y el
+    historial de ejecuciones automáticas.</p>
+    <p style="margin-top:18px">
+      <a class="siguiente" href="{destino}" target="_blank" rel="noopener"
+         style="display:inline-flex;text-decoration:none">
+        Abrir el servicio de reposición <span class="flecha">↗</span></a>
+    </p>
+  </div>
 </div>"""
 
 
@@ -1450,17 +1487,19 @@ def construir_informe(
     paginas[0]["html"] = _hero(metricas["comparativa"], metricas["margen_cupon"].iloc[0]) + paginas[0]["html"]
 
     paneles = [_panel(p["id"], p["ruta"], p["titulo"], p["html"]) for p in paginas]
-    paneles.append(_panel_pendiente(
+    paneles.append(_panel_servicio(
         "reto2", "Reto 2 · Reposición", "Propuesta semanal de reposición",
-        "Pendiente. Aquí irá la propuesta automática de qué modelos y tallas reponer, "
-        "con el plazo de entrega de 6 semanas y la cobertura objetivo de 8."))
+        config.URL_SERVICIO_RETO2))
     paneles.append(_panel_pendiente(
         "reto3", "Reto 3 · Hoja de ruta", "IA a 6 meses",
         "Pendiente. Aquí irá la hoja de ruta de IA para Compras, Ventas, Planificación, "
         "Logística, Producto, Marketing y Atención al cliente."))
 
     html = f"""<!doctype html>
-<html lang="es">
+<!-- data-theme="claro" fuerza el tema claro al abrir, aunque el sistema esté en
+     oscuro: es el modo en el que se diseñaron los gráficos y en el que se va a
+     presentar. El botón de la esquina sigue permitiendo cambiarlo. -->
+<html lang="es" data-theme="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
