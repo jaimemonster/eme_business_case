@@ -1,0 +1,108 @@
+# Despliegue continuo del servicio de reposición (Reto 2).
+#
+# Qué hace: cada vez que se toca el código del cálculo o del servicio en `main`,
+# construye la imagen y publica una versión nueva en Cloud Run. Nadie ejecuta un
+# comando a mano, y el proceso diario de las 00:00 no se entera: Cloud Run cambia
+# de versión sin cortar el tráfico.
+#
+# Por qué Workload Identity y no una clave: la organización tiene activada la
+# política `iam.disableServiceAccountKeyCreation`, que prohíbe descargar claves
+# JSON. Workload Identity deja que GitHub se identifique ante Google sin que
+# exista ningún secreto descargable, que además es la forma correcta.
+#
+# ESTADO: escrito y revisado, NO activado. Hace falta crear el proveedor de
+# identidad una sola vez; los comandos están en el apartado 7 de
+# docs/reto2_infraestructura.md. Mientras tanto se despliega con `gcloud run deploy`.
+
+name: Desplegar a Cloud Run
+
+# OJO: solo se lanza a mano. El disparo automático por push está comentado a
+# propósito, porque el proveedor de Workload Identity todavía no existe y el
+# despliegue fallaría en cuanto alguien hiciera merge a main. Se descomenta el
+# mismo día que se ejecuten los comandos del apartado 7 de
+# docs/reto2_infraestructura.md.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "src/**"
+  #     - "service/**"
+  #     - "Dockerfile"
+  #     - "requirements.txt"
+
+env:
+  PROYECTO: eme-reposicion
+  REGION: europe-southwest1
+  SERVICIO: eme-reposicion
+  CUENTA: reposicion-bot@eme-reposicion.iam.gserviceaccount.com
+
+jobs:
+  comprobar:
+    name: Comprobaciones
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      # La comprobación que de verdad importa: que el pipeline entero corre de
+      # punta a punta y produce una propuesta. Si esto falla, no se despliega.
+      - name: El cálculo produce una propuesta
+        run: |
+          python - <<'PY'
+          from src.clean import ejecutar_limpieza
+          from src import replenishment
+          r = replenishment.generar_propuesta(ejecutar_limpieza(persistir=False))
+          n = len(r["propuesta"])
+          assert n > 0, "la propuesta ha salido vacía"
+          assert r["propuesta"]["unidades_propuestas"].min() > 0, "hay líneas con 0 unidades"
+          print(f"OK · {n} SKUs propuestos")
+          PY
+
+      - name: Las páginas del servicio se construyen
+        run: |
+          python - <<'PY'
+          from service import vista
+          for p in (vista.pagina_produccion(), vista.pagina_decisiones()):
+              assert p.startswith("<!doctype html>") and len(p) > 2000
+          print("OK · páginas generadas")
+          PY
+
+  desplegar:
+    name: Desplegar
+    needs: comprobar
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # necesario para Workload Identity
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_CUENTA_DESPLIEGUE }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Construir y desplegar
+        run: |
+          gcloud run deploy "$SERVICIO" \
+            --source . \
+            --project "$PROYECTO" \
+            --region "$REGION" \
+            --service-account "$CUENTA" \
+            --allow-unauthenticated \
+            --memory 1Gi --cpu 1 --timeout 300 --max-instances 3 \
+            --set-env-vars "EME_TOKEN_TRABAJO=${{ secrets.EME_TOKEN_TRABAJO }}" \
+            --quiet
+
+      - name: Comprobar que la versión nueva responde
+        run: |
+          URL=$(gcloud run services describe "$SERVICIO" --region "$REGION" \
+                --project "$PROYECTO" --format='value(status.url)')
+          curl -fsS "$URL/health" > /dev/null && echo "Desplegado y vivo: $URL"

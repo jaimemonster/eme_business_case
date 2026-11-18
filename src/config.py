@@ -11,6 +11,7 @@ cambio debe registrarse en docs/decisiones.md.
 from __future__ import annotations
 
 import datetime as dt
+import os
 from pathlib import Path
 
 # --- Rutas -----------------------------------------------------------------
@@ -56,6 +57,28 @@ HORIZONTE_ROTURA_SEMANAS: int = 4
 # --- Etiquetas de negocio ---------------------------------------------------
 ETIQUETA_REGALO: str = "influencers"
 ETIQUETA_PRECIO_ESPECIAL: str = "special"
+
+
+# --- Infraestructura del servicio del Reto 2 -------------------------------
+# No son secretos: el ID de un Sheet no da acceso a nada por sí solo (el acceso
+# lo controla con quién está compartido). Se pueden sobrescribir por entorno
+# para que el servicio desplegado no dependa de valores escritos en el código.
+# El montaje completo está documentado en docs/reto2_infraestructura.md.
+PROYECTO_GCP: str = os.environ.get("EME_PROYECTO_GCP", "eme-reposicion")
+REGION_GCP: str = os.environ.get("EME_REGION_GCP", "europe-southwest1")
+CUENTA_SERVICIO: str = os.environ.get(
+    "EME_CUENTA_SERVICIO", "reposicion-bot@eme-reposicion.iam.gserviceaccount.com"
+)
+ID_SHEET_PROPUESTA: str = os.environ.get(
+    "EME_SHEET_ID", "16mATc295JLdg6XusheIa55NpjOHVUisGniq6ihc4FFk"
+)
+# URL pública del servicio del Reto 2. El informe del Reto 1 enlaza aquí: si
+# queda vacía, el menú vuelve a mostrar el Reto 2 como pendiente en lugar de
+# ofrecer un enlace roto.
+URL_SERVICIO_RETO2: str = os.environ.get(
+    "EME_URL_SERVICIO",
+    "https://eme-reposicion-761842722633.europe-southwest1.run.app",
+)
 
 
 def asegurar_directorios() -> None:

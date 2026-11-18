@@ -271,12 +271,17 @@ def ejecutar_limpieza(persistir: bool = True) -> Dict[str, pd.DataFrame]:
     stock = limpiar_stock(crudas["STOCK"], producto)
     compras = limpiar_compras(crudas["COMPRAS"], producto)
 
+    # El stock semanal se reconstruye a partir de los movimientos: hace falta
+    # para distinguir "no se vendió" de "no había qué vender". Ver la función.
+    stock_semanal = reconstruir_stock_semanal(ventas, regalos, compras, stock)
+
     tablas = {
         "producto": producto,
         "ventas": ventas,
         "regalos": regalos,
         "stock": stock,
         "compras": compras,
+        "stock_semanal": stock_semanal,
     }
     resumen = resumir_limpieza(crudas, tablas)
 
@@ -319,3 +324,112 @@ def resumir_limpieza(
         ("8", "Compras que llegaron tarde", int((compras["dias_retraso"] > 0).sum())),
     ]
     return pd.DataFrame(filas, columns=["decision", "concepto", "n_filas"])
+
+
+# ---------------------------------------------------------------------------
+# Reconstrucción del stock semanal
+# ---------------------------------------------------------------------------
+
+def _inicio_semana(fechas: pd.Series) -> pd.Series:
+    """Lunes de la semana ISO de cada fecha."""
+    f = pd.to_datetime(fechas)
+    return f - pd.to_timedelta(f.dt.weekday, unit="D")
+
+
+def reconstruir_stock_semanal(
+    ventas: pd.DataFrame,
+    regalos: pd.DataFrame,
+    compras: pd.DataFrame,
+    stock: pd.DataFrame,
+) -> pd.DataFrame:
+    """Estima el stock de cada SKU al cierre de cada semana, hacia atrás.
+
+    El caso solo da una foto del almacén: las unidades disponibles a fecha de
+    cierre. Pero sí da todos los movimientos, así que el histórico se puede
+    reconstruir caminando hacia atrás desde esa foto:
+
+        stock(semana anterior) = stock(semana) − entradas(semana) + salidas(semana)
+
+    **Las salidas incluyen los regalos a influencers.** No son venta —y por eso
+    están fuera de todo KPI comercial— pero vacían el almacén igual que una
+    venta. Es la única parte del análisis donde los regalos cuentan, y es
+    exactamente para lo que `clean.py` los conserva en una tabla aparte.
+
+    Para qué sirve: para distinguir una semana sin ventas **porque nadie quería
+    el producto** de una semana sin ventas **porque no había nada que vender**.
+    En los datos las dos se ven igual (un cero), y confundirlas castiga justo a
+    los productos que se agotan porque funcionan bien.
+
+    Devuelve una fila por SKU y semana con `stock_fin` (unidades estimadas al
+    cierre), `entradas`, `salidas` y el flag **`disponible`**, que es lo que
+    consume el forecast.
+
+    Limitación conocida: el Excel no recoge devoluciones, mermas ni ajustes de
+    inventario, así que el saldo reconstruido no siempre cuadra. Donde sale
+    negativo, el flag `reconstruccion_fiable` queda a False y esa semana no debe
+    usarse para estimar demanda.
+    """
+    salidas = pd.concat(
+        [ventas[["sku", "fecha", "unidades"]], regalos[["sku", "fecha", "unidades"]]],
+        ignore_index=True,
+    )
+    salidas["inicio_semana"] = _inicio_semana(salidas["fecha"])
+    salidas = (
+        salidas.groupby(["sku", "inicio_semana"], as_index=False)["unidades"]
+        .sum()
+        .rename(columns={"unidades": "salidas"})
+    )
+
+    llegadas = compras[compras["ha_llegado"]].copy()
+    llegadas["inicio_semana"] = _inicio_semana(llegadas["fecha_llegada_efectiva"])
+    entradas = (
+        llegadas.groupby(["sku", "inicio_semana"], as_index=False)["unidades"]
+        .sum()
+        .rename(columns={"unidades": "entradas"})
+    )
+
+    corte = pd.Timestamp(config.FECHA_CORTE_DATOS)
+    semanas = pd.date_range(
+        _inicio_semana(pd.Series([pd.Timestamp(config.INICIO_DATOS)])).iloc[0],
+        _inicio_semana(pd.Series([corte])).iloc[0],
+        freq="W-MON",
+    )
+    rejilla = pd.MultiIndex.from_product(
+        [stock["sku"].unique(), semanas], names=["sku", "inicio_semana"]
+    ).to_frame(index=False)
+
+    m = (
+        rejilla.merge(salidas, on=["sku", "inicio_semana"], how="left")
+        .merge(entradas, on=["sku", "inicio_semana"], how="left")
+        .merge(stock[["sku", "stock_disponible"]], on="sku", how="left")
+        .fillna({"salidas": 0, "entradas": 0, "stock_disponible": 0})
+        .sort_values(["sku", "inicio_semana"])
+    )
+
+    # stock_fin(t) = stock_final − (movimientos netos posteriores a t).
+    # Se calcula con un acumulado por SKU en vez de iterar semana a semana.
+    m["flujo"] = m["entradas"] - m["salidas"]
+    acumulado = m.groupby("sku")["flujo"].cumsum()
+    total = m.groupby("sku")["flujo"].transform("sum")
+    m["stock_fin"] = m["stock_disponible"] - (total - acumulado)
+
+    # Una semana cuenta como disponible si quedaba stock al cierre o si hubo
+    # salidas: si salió producto, es que había.
+    m["disponible"] = (m["stock_fin"] > 0) | (m["salidas"] > 0)
+    m["reconstruccion_fiable"] = m["stock_fin"] >= 0
+
+    # Vida comercial del SKU: desde su primer movimiento (primera entrada en
+    # almacén o primera venta) hasta el cierre. Antes de esa semana el producto
+    # no existía, y contar esos ceros como "rotura" dispararía el porcentaje de
+    # roturas con semanas en las que no había nada que romper.
+    movimiento = (m["entradas"] > 0) | (m["salidas"] > 0)
+    primera = (
+        m[movimiento].groupby("sku")["inicio_semana"].min().rename("primera_semana")
+    )
+    m = m.merge(primera, on="sku", how="left")
+    m["en_vida"] = m["inicio_semana"] >= m["primera_semana"]
+
+    return m[[
+        "sku", "inicio_semana", "entradas", "salidas", "stock_fin",
+        "disponible", "en_vida", "reconstruccion_fiable",
+    ]].reset_index(drop=True)

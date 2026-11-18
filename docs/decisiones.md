@@ -564,3 +564,187 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   rotura» a «modelos a los que les faltará alguna talla dentro de 4 semanas».
 - **Reto:** 1.
 - **Estado:** confirmado con el usuario.
+
+### [2026-11-17] La previsión del Reto 2 se hace por categoría y se reparte a SKU
+- **Contexto:** a nivel de SKU la demanda semanal es ruido: 0,79 uds de media, el
+  62 % de las semanas a cero y un ruido relativo de 1,90. A nivel de sección ×
+  categoría son 21,47 uds/semana, 6,4 % de ceros y ruido 0,96.
+- **Opciones consideradas:** un modelo por SKU (descartado: no hay datos por serie,
+  mediana de 34 semanas de vida) y un modelo global que prediga directamente el
+  SKU (descartado tras medir, ver más abajo).
+- **Decisión:** se predice el **nivel** por sección × categoría y se **reparta** a
+  SKU en dos pasos: share del modelo dentro de su categoría (estable, r = 0,77) y
+  curva de tallas encogida hacia la de su categoría.
+- **Evidencia:** regalando al método el total de categoría REAL (oráculo), sobre 4
+  cortes: el método anterior daba MAE 3,72 y sesgo absoluto 44,1 %; con el total
+  correcto, 3,14 y 7,9 %. **Casi todo el error era de nivel, no de reparto.**
+  Refinar el reparto con encogimiento solo mejora de 3,14 a 3,06 (2 %).
+- **Reto:** 2.
+- **Impacto:** todo el esfuerzo de modelado va al nivel; el reparto se mantiene
+  deliberadamente simple. Arregla además la curva de tallas que el Reto 1 dejó
+  marcada como pendiente.
+- **Estado:** validado con los datos.
+
+### [2026-11-17] Las semanas con el producto agotado no cuentan como demanda cero
+- **Contexto:** una semana sin ventas puede ser "nadie lo quería" o "estaba
+  agotado", y en los datos las dos se ven igual: un cero. Contarlas juntas castiga
+  a los productos que se agotan porque funcionan bien.
+- **Decisión:** `clean.reconstruir_stock_semanal` reconstruye el stock semana a
+  semana caminando hacia atrás desde la foto de cierre
+  (`stock(t-1) = stock(t) − entradas(t) + salidas(t)`), **contando los regalos a
+  influencers como salida** porque vacían el almacén aunque no sean venta. La
+  demanda se calcula solo sobre las semanas con producto disponible.
+- **Evidencia:** acotado a la vida comercial de cada SKU, el 4,9 % de las semanas
+  sin venta eran roturas, en 45 SKUs de 579. La reconstrucción cuadra en el 97,5 %
+  de las semanas; donde sale negativa se marca como no fiable.
+- **Reto:** 2.
+- **Impacto:** modesto en el agregado, grande en los 45 SKUs afectados.
+- **Estado:** validado con los datos. Limitación: el Excel no recoge devoluciones,
+  mermas ni ajustes de inventario, de ahí el 2,5 % que no cuadra.
+
+### [2026-11-17] El método de previsión se elige por backtesting, no por criterio
+- **Contexto:** hay cuatro candidatos razonables y ninguna razón a priori para
+  preferir uno.
+- **Decisión:** se comparan los cuatro con validación de origen móvil —entrenando
+  solo con datos anteriores a cada corte— y se usa el que gana. La tabla viaja
+  hasta el entregable.
+- **Evidencia (12 cortes, horizonte 14 semanas):**
+
+  | método | MAE | sesgo absoluto |
+  |--------|-----|----------------|
+  | modelo entrenado | **6,02** | **24,9 %** |
+  | media móvil plana | 6,36 | 37,9 % |
+  | media móvil estacional | 6,37 | 38,3 % |
+  | mismas semanas del año anterior | 6,91 | 38,0 % |
+
+- **Reto:** 2.
+- **Impacto:** se usa el modelo entrenado. Si en una ejecución futura dejara de
+  ganar, el pipeline cambiaría de método solo.
+- **Estado:** validado con los datos.
+
+### [2026-11-17] El error se mide en valor absoluto, no con signo
+- **Contexto:** `forecast.evaluar_forecast` promediaba el sesgo con signo. A 14
+  semanas los sesgos por corte son −62 %, −56 %, +11 %, +27 %, +46 %, +52 %, +70 %
+  y +103 %: promediados dan +23,7 %, y desplazando los cortes tres semanas dan
+  +6,4 %. El número no medía nada.
+- **Decisión:** se reporta el **sesgo absoluto** como métrica principal, junto al
+  MAE. El sesgo con signo se mantiene como dato secundario, porque sí dice hacia
+  qué lado se tiende a fallar.
+- **Reto:** 2.
+- **Impacto:** el método anterior pasa de parecer un +23,7 % a ser un 44,1 % de
+  error real sobre el total.
+- **Estado:** confirmado.
+
+### [2026-11-17] La necesidad se calcula a 14 semanas (6 de plazo + 8 de cobertura)
+- **Contexto:** el pedido que se lanza hoy llega en 6 semanas y debe durar 8, así
+  que responde de la demanda de las próximas 14.
+- **Decisión:** `necesidad = demanda(14 semanas) − stock disponible − compras que
+  llegan dentro de esas 14 semanas`, con suelo en cero y redondeo al alza.
+- **Advertencia registrada:** esas 14 semanas **cruzan dos realidades comerciales
+  distintas**. Con la fecha de corte del caso van del 16-nov al 15-feb: siete
+  semanas de campaña de Navidad (191–314 uds/semana el año pasado) y siete de
+  enero-febrero a una sexta parte del ritmo (34–60). Además, las últimas caen en
+  rebajas: comprar a coste completo para vender con descuento es un error caro.
+  En producción el horizonte debería acotarse al final de la temporada comercial.
+- **Reto:** 2.
+- **Impacto:** proyectar plano sobre esa ventana daba 7.606 uds frente a las 3.109
+  reales del año anterior. Era el origen del sobrepedido.
+- **Estado:** parámetro del enunciado, respetado. La acotación por temporada queda
+  propuesta, no aplicada.
+
+### [2026-11-17] Las compras vencidas sin confirmar no cuentan como stock en camino
+- **Contexto:** 37 pedidos sin fecha real cuya estimada ya pasó. El Reto 1 los
+  marcó y dejó la decisión para el Reto 2.
+- **Decisión:** no cuentan como stock en camino, y salen en una pestaña propia para
+  que Compras las reclame al proveedor. Es el mismo criterio que
+  `metrics.alertas_stock`, para que las dos cifras puedan mirarse juntas.
+- **Reto:** 2.
+- **Impacto:** contarlas llevaría a reponer de menos para unidades que
+  probablemente no estén.
+- **Estado:** confirmado.
+
+### [2026-11-17] No se inventa lote mínimo de proveedor, y los SKUs parados no se reponen
+- **Decisión:** `UNIDADES_MINIMAS = 1` queda como parámetro configurable: el lote
+  mínimo no está en los datos y no se simula. Los SKUs sin ventas recientes no se
+  reponen, pero **no desaparecen**: salen en la pestaña "Sin rotación" ordenados
+  por capital inmovilizado, porque son candidatos a rebaja o fin de vida y esa
+  decisión también es de Compras.
+- **Reto:** 2.
+- **Estado:** confirmado.
+
+### [2026-11-17] El Reto 1 conserva su método de previsión
+- **Contexto:** el nuevo motor (`demand.py`) es mejor, pero el Reto 1 ya está
+  entregado y sus alertas de rotura usan `forecast.py` a 4 semanas, horizonte en el
+  que el problema del sesgo es mucho menor.
+- **Decisión:** no se tocan las cifras del Reto 1. `forecast.py` se mantiene para el
+  Reto 1 y `demand.py` es el motor del Reto 2.
+- **Reto:** 1 y 2.
+- **Impacto:** evita cambiar en silencio cifras ya presentadas. Queda como mejora
+  pendiente unificar los dos retos bajo el motor nuevo.
+- **Estado:** confirmado con el usuario.
+
+### [2026-11-17] El servicio se despliega en Cloud Run con un reloj diario
+- **Contexto:** el enunciado pide un proceso automático y un esquema de producción.
+- **Decisión:** el proceso corre como servicio en Cloud Run, disparado por Cloud
+  Scheduler **cada día a las 00:00 (Europe/Madrid)**, y escribe la propuesta en un
+  Google Sheet fijo. En producción la frecuencia natural sería semanal, los lunes
+  a primera hora; el diario es para poder verlo funcionar durante la evaluación.
+- **Credenciales:** no existe ninguna clave descargada. El servicio corre *como* su
+  cuenta de servicio y en local se usa impersonación. Detalle en
+  `docs/reto2_infraestructura.md`.
+- **Reto:** 2.
+- **Estado:** confirmado.
+
+### [2026-11-18] El stock parado se detecta por ventas observadas, no por demanda prevista
+- **Contexto:** al pasar la previsión a jerárquica (se predice la categoría y se
+  reparte), **ningún SKU tiene ya demanda prevista cero**: hasta un producto parado
+  recibe una fracción del total de su categoría. La lista de "sin rotación", que se
+  definía como demanda prevista cero, se quedó vacía de golpe.
+- **Decisión:** el stock parado se identifica con las **unidades realmente vendidas**
+  en las últimas 13 semanas (columna `uds_recientes`), no con la previsión.
+- **Reto:** 2.
+- **Impacto:** recupera la detección de **41 SKUs con 1.000 uds y 19.276 € de capital
+  inmovilizado**, que con la definición anterior habrían desaparecido del entregable.
+- **Estado:** confirmado. Es un efecto secundario del cambio de método que no estaba
+  previsto y que solo se vio al revisar la salida.
+
+### [2026-11-18] El entregable se reduce a tres pestañas y once columnas
+- **Contexto:** la primera versión sacaba seis pestañas y diecinueve columnas. Un
+  entregable así no se revisa: se cierra.
+- **Decisión:** tres pestañas —**Propuesta** (sobre lo que hay que actuar),
+  **Revisar** (lo que necesita una persona pero no es un pedido) y **Cómo se ha
+  calculado**— más el histórico de ejecuciones que escribe el servicio. La propuesta
+  pasa de 19 a 11 columnas.
+- **Reto:** 2.
+- **Impacto:** las tablas completas siguen en `data/processed/` para auditar; lo que
+  se recorta es el entregable, no el cálculo.
+- **Estado:** confirmado con el usuario.
+
+### [2026-11-18] Se probó Prophet y se descartó por los datos, no por prejuicio
+- **Contexto:** Prophet es la opción obvia para una serie temporal con estacionalidad,
+  y había que medirla en vez de descartarla de palabra.
+- **Decisión:** se probó con el **mismo backtesting** (12 cortes, horizonte 14 semanas)
+  en cinco configuraciones, un modelo por categoría. Se descarta.
+- **Evidencia:**
+
+  | Configuración | MAE | sesgo absoluto |
+  |---------------|-----|----------------|
+  | multiplicativo, tendencia libre | 295,97 | 2.833 % |
+  | aditivo, tendencia libre | 51,52 | 512 % |
+  | aditivo, 4 armónicos | 24,67 | 181 % |
+  | aditivo, tendencia rígida | 24,60 | 180 % |
+  | aditivo, sin tendencia (su mejor versión) | 14,69 | 74,4 % |
+  | **el modelo que usamos** | **6,02** | **24,9 %** |
+
+  Lo revelador no es que pierda, sino **cómo** pierde: mejora cuanto más se le ata.
+  Ésa es la firma de un modelo con demasiados grados de libertad para los datos que
+  hay. Con 95 semanas —menos de dos ciclos anuales completos— Prophet estima una
+  estacionalidad anual y una tendencia flexible a partir de prácticamente una sola
+  observación de cada época del año, y extrapola de forma salvaje.
+- **Por qué gana el otro:** el modelo elegido **entrena las diez categorías juntas**,
+  así que estima el patrón estacional con diez veces más datos; Prophet ajusta una
+  serie por categoría y no puede compartir nada entre ellas.
+- **Reto:** 2.
+- **Impacto:** ninguno en las cifras. Prophet no se añade como dependencia: pesa
+  ~100 MB con `cmdstanpy` y tardaría 13 s por backtesting, a cambio de ser peor.
+- **Estado:** medido y descartado.
