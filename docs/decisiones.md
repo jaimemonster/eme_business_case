@@ -579,6 +579,7 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   cortes: el método anterior daba MAE 3,72 y sesgo absoluto 44,1 %; con el total
   correcto, 3,14 y 7,9 %. **Casi todo el error era de nivel, no de reparto.**
   Refinar el reparto con encogimiento solo mejora de 3,14 a 3,06 (2 %).
+- **Clave:** sí
 - **Reto:** 2.
 - **Impacto:** todo el esfuerzo de modelado va al nivel; el reparto se mantiene
   deliberadamente simple. Arregla además la curva de tallas que el Reto 1 dejó
@@ -597,6 +598,7 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
 - **Evidencia:** acotado a la vida comercial de cada SKU, el 4,9 % de las semanas
   sin venta eran roturas, en 45 SKUs de 579. La reconstrucción cuadra en el 97,5 %
   de las semanas; donde sale negativa se marca como no fiable.
+- **Clave:** sí
 - **Reto:** 2.
 - **Impacto:** modesto en el agregado, grande en los 45 SKUs afectados.
 - **Estado:** validado con los datos. Limitación: el Excel no recoge devoluciones,
@@ -617,6 +619,7 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   | media móvil estacional | 6,37 | 38,3 % |
   | mismas semanas del año anterior | 6,91 | 38,0 % |
 
+- **Clave:** sí
 - **Reto:** 2.
 - **Impacto:** se usa el modelo entrenado. Si en una ejecución futura dejara de
   ganar, el pipeline cambiaría de método solo.
@@ -646,6 +649,7 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   enero-febrero a una sexta parte del ritmo (34–60). Además, las últimas caen en
   rebajas: comprar a coste completo para vender con descuento es un error caro.
   En producción el horizonte debería acotarse al final de la temporada comercial.
+- **Clave:** sí
 - **Reto:** 2.
 - **Impacto:** proyectar plano sobre esa ventana daba 7.606 uds frente a las 3.109
   reales del año anterior. Era el origen del sobrepedido.
@@ -658,6 +662,7 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
 - **Decisión:** no cuentan como stock en camino, y salen en una pestaña propia para
   que Compras las reclame al proveedor. Es el mismo criterio que
   `metrics.alertas_stock`, para que las dos cifras puedan mirarse juntas.
+- **Clave:** sí
 - **Reto:** 2.
 - **Impacto:** contarlas llevaría a reponer de menos para unidades que
   probablemente no estén.
@@ -669,6 +674,7 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   reponen, pero **no desaparecen**: salen en la pestaña "Sin rotación" ordenados
   por capital inmovilizado, porque son candidatos a rebaja o fin de vida y esa
   decisión también es de Compras.
+- **Clave:** sí
 - **Reto:** 2.
 - **Estado:** confirmado.
 
@@ -748,3 +754,124 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
 - **Impacto:** ninguno en las cifras. Prophet no se añade como dependencia: pesa
   ~100 MB con `cmdstanpy` y tardaría 13 s por backtesting, a cambio de ser peor.
 - **Estado:** medido y descartado.
+
+### [2026-11-18] El Reto 3 son cinco páginas del mismo informe, no un documento aparte
+- **Contexto:** el menú lateral del informe ya reservaba un hueco al Reto 3 marcado
+  como «pendiente». La hoja de ruta podía entregarse como documento suelto o como
+  parte de la web que ya existe.
+- **Opciones consideradas:** (a) un HTML independiente en `output/reto3/`, que
+  obligaría a duplicar el sistema de diseño y a abrir dos ficheros en la defensa;
+  (b) solo el markdown de `docs/`, que no permite ni matriz ni calendario visuales.
+- **Decisión:** el Reto 3 se integra como **cinco páginas** del informe, con el mismo
+  `design.py`, la misma navegación y la misma paleta. Una sola entrega con los tres
+  retos. El markdown de `docs/reto3_roadmap_ia.md` se **genera** desde las mismas
+  estructuras de datos (`src/roadmap.py`), nunca se escribe a mano.
+- **Reto:** 3.
+- **Impacto:** `src/report.py` monta ahora 13 páginas; `pipelines/run_reto3.py`
+  regenera el documento y los CSV de `output/reto3/`.
+- **Estado:** decidido.
+
+### [2026-11-18] Cada iniciativa declara si la IA construye o si la IA ejecuta
+- **Contexto:** «hoja de ruta de IA» se lee por defecto como «meter un LLM en cada
+  proceso». En una marca de este tamaño la mayor parte del valor no está ahí.
+- **Decisión:** las iniciativas se etiquetan con **tipo A** (la IA escribe el código;
+  en producción corre lógica determinista y auditable), **tipo B** (la IA está dentro
+  del proceso: lenguaje, voz o modelo) y **tipo C** (la IA en manos del propio equipo,
+  que es la palanca de adopción y no compite en la matriz). De las doce, **solo cinco
+  son B**.
+- **Por qué importa:** es lo que evita el error caro de poner un modelo de lenguaje
+  donde basta una resta, y es lo que explica que quepan doce iniciativas en seis meses
+  y no tres.
+- **Reto:** 3.
+- **Impacto:** la tabla de iniciativas y la forma de los puntos de la matriz
+  (círculo = A, rombo = B).
+- **Estado:** decidido.
+
+### [2026-11-18] El esfuerzo se mide en semanas hasta producción, no en desarrollo
+- **Contexto:** si el código lo escribe un agente, medir el esfuerzo en semanas de
+  programar deja de tener sentido y desordena toda la priorización.
+- **Decisión:** el eje de esfuerzo de la matriz son **semanas hasta estar en
+  producción**, e incluyen conseguir el acceso al dato, acordar quién valida el
+  resultado y las vueltas con el usuario hasta que lo usa de verdad.
+- **Consecuencia poco intuitiva:** el agente de atención al cliente (iniciativa 6)
+  sale caro no por su complejidad técnica, sino porque necesita conectar pedidos y
+  seguimiento de envíos; y queda fuera de las victorias rápidas por eso.
+- **Reto:** 3.
+- **Impacto:** el eje X de la matriz y el orden del calendario.
+- **Estado:** decidido.
+
+### [2026-11-18] El impacto separa ahorro recurrente de capital liberado una sola vez
+- **Contexto:** la iniciativa con más euros detrás (liquidar el exceso) libera capital
+  una vez; el resto ahorra horas y errores todos los años. Sumarlo todo en una cifra
+  habría dado un número grande y falso.
+- **Decisión:** dos columnas separadas, **75.700 €/año recurrentes** y **35.300 € de
+  capital liberado una vez**, y nunca se suman. Además, dos iniciativas (la 7 y la 10)
+  se declaran **habilitadoras** y no se les imputa euro propio, porque su retorno ya
+  está contado en la 9 y en la 4 respectivamente.
+- **Reto:** 3.
+- **Impacto:** las tarjetas de cabecera de la página de iniciativas y el eje Y de la
+  matriz, que usa euros del primer año.
+- **Estado:** decidido.
+
+### [2026-11-18] Las cifras de la hoja de ruta se recalculan desde las tablas del Reto 1
+- **Contexto:** la primera versión leía `reto2_propuesta.parquet` y `reto2_sin_rotacion.parquet`,
+  y el informe dejaba de generarse si no se había ejecutado antes el pipeline del Reto 2.
+- **Decisión:** `roadmap.cifras_de_partida()` solo usa `data/interim` y las métricas del
+  Reto 1. El stock muerto se redefine como **SKUs con existencias y ninguna venta en los
+  últimos 12 meses** (21 SKUs, 9.969 €), y la venta en riesgo pasa a **margen en riesgo**
+  (249 uds de déficit × 42,1 € de margen medio ≈ 10.500 €).
+- **Reto:** 3.
+- **Impacto:** las cifras de las iniciativas 1 y 3. `python pipelines/run_reto1.py` vuelve
+  a bastar por sí solo para generar el informe completo.
+- **Estado:** corregido y verificado.
+
+### [2026-11-18] Pasada de estilo sobre los tres retos: menos texto y voz propia
+- **Contexto:** el texto de los tres entregables se leía como escrito por un modelo.
+  Se revisó con `copy-tells.md` y `copy-voice.md` de la skill `taste-skill`
+  (github.com/leonxlnx/taste-skill), que cataloga los tics que delatan a un modelo.
+- **Qué se encontró:** contrastes «no X, sino Y» y «X, no Y» en cada sección; dos puntos
+  reveladores («el problema es la fecha, no ellos»); frases de cierre con efecto («Una
+  herramienta que se abandona cuenta como no entregada»); adjetivos sobre el propio texto
+  («incómodo a propósito», «conservador»); y párrafos que hablaban del informe en vez de
+  hablar del negocio («Plegadas. Dentro está…», «conviene enseñar…»).
+- **Decisión:** se reescribe la prosa de los tres retos con una voz fija: frases de 8 a 16
+  palabras, el dato como sujeto, sin cierres de efecto y sin que el texto se describa a sí
+  mismo. Las notas de más de 50 palabras se recortan a la mitad.
+- **Reto:** transversal.
+- **Impacto:** el informe pasa de 9.869 a 8.600 palabras sin perder ninguna cifra ni ninguna
+  decisión. Afecta a `src/report.py`, `src/roadmap.py` y `service/vista.py`.
+- **Estado:** aplicado.
+
+### [2026-11-19] La página de decisiones del Reto 2 muestra solo seis
+- **Contexto:** la página listaba las 13 decisiones del log que tocan al Reto 2, incluidas
+  las de formato del entregable y la del estilo del texto. Nadie las lee.
+- **Decisión:** se marcan en `docs/decisiones.md` con un campo `Clave: sí` las seis sin las
+  que no se entienden las cifras de la propuesta, y la página filtra por ese campo. El log
+  completo sigue en el fichero.
+- **Reto:** 2.
+- **Impacto:** la página pasa de 13 entradas a 6. Ninguna cifra cambia.
+- **Estado:** aplicado.
+
+### [2026-11-19] El método del Reto 2 abre con un año de venta y de stock
+- **Contexto:** la página explicaba el modelo sin enseñar nunca la serie sobre la que trabaja.
+- **Decisión:** se añade un gráfico de dos paneles que comparten el eje de tiempo: unidades en
+  almacén arriba, venta semanal abajo, 52 semanas observadas y 14 previstas. Dos paneles y no
+  dos ejes en el mismo marco, porque el stock se mueve entre 13.000 y 16.000 unidades y la
+  venta entre 150 y 500. El stock previsto es el que quedaría sin reponer nada.
+- **Reto:** 2.
+- **Impacto:** ninguna cifra nueva. Hace visible que la venta sube y baja con la temporada
+  mientras el almacén apenas se mueve: en 14 semanas bajaría 3.613 uds, de 16.283 a 12.670.
+- **Estado:** aplicado.
+
+### [2026-11-19] El Reto 3 pasa a 12 iniciativas con text-to-SQL, y pierde una por fusión
+- **Contexto:** la captura del motivo de devolución y la revisión del tallaje eran dos
+  iniciativas, y la segunda no se entendía sin la primera. Faltaba además la vía más directa
+  para que cualquiera use los datos.
+- **Decisión:** se fusionan en una sola («Por qué devuelven, y arreglar el tallaje») y entra
+  **Preguntar a los datos en lenguaje natural**: traduce la pregunta a SQL sobre las tablas
+  limpias, enseña la consulta y devuelve la tabla. Entra por el peldaño 1, siempre con el SQL
+  a la vista, porque un text-to-SQL que responde sin que nadie mire la consulta es peligroso.
+- **Reto:** 3.
+- **Impacto:** siguen siendo 12 iniciativas. Las que llevan IA dentro pasan de 5 a 6, las horas
+  de 1.073 a 1.229 y el ahorro recurrente de 75.700 € a 79.600 €.
+- **Estado:** aplicado.

@@ -29,7 +29,7 @@ documentación siguen las convenciones descritas aquí.
 |------|------|------------|
 | 1 · Informe semanal de ventas y stock | 40 % | Informe HTML autocontenido en `output/reto1/` |
 | 2 · Automatizar la propuesta de reposición | 30 % | Propuesta revisable (Excel/online) en `output/reto2/` + esquema de producción |
-| 3 · Hoja de ruta de IA a 6 meses | 30 % | `docs/reto3_roadmap_ia.md` + material en `output/reto3/` |
+| 3 · Hoja de ruta de IA a 6 meses | 30 % | Cinco páginas dentro del informe del Reto 1 + `docs/reto3_roadmap_ia.md` (generado) + `output/reto3/` |
 
 ---
 
@@ -149,6 +149,21 @@ Por eso cada entrada de `decisiones.md` debe indicar a qué reto afecta.
 
 ```bash
 source .venv/bin/activate
+python pipelines/run_todo.py    # Retos 1 y 3 de una vez · es el que se usa
+```
+
+Por partes, si hace falta:
+
+```bash
 python pipelines/run_reto1.py   # limpieza → métricas → informe HTML
 python pipelines/run_reto2.py   # limpieza → forecast → reposición → export
+python pipelines/run_reto3.py   # hoja de ruta → markdown + CSV
 ```
+
+El Reto 2 no entra en `run_todo.py` porque no se genera, se ejecuta: está
+desplegado en Cloud Run y se lanza solo cada día. `run_reto2.py` es para
+reproducirlo en local.
+
+El Reto 3 no tiene pipeline de datos propio: su contenido vive en `src/roadmap.py`
+como estructuras de datos, y de ahí salen tanto las páginas del informe (`run_reto1.py`)
+como el documento markdown y los CSV (`run_reto3.py`). El markdown **no se edita a mano**.

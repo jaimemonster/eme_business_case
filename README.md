@@ -9,7 +9,7 @@ compras) se entregan tres cosas:
 |------|------|--------|------------|
 | **1 · Informe semanal de ventas y stock** | 40 % | El informe que la dirección abriría cada lunes: cómo fue la semana, cómo se reparte el negocio, qué modelos tiran y cuáles no, y qué roturas o excesos de stock hay que decidir. | `output/reto1/` |
 | **2 · Propuesta automática de reposición** | 30 % | **Servicio desplegado** que cada día a las 00:00 prevé la demanda por SKU, descuenta stock y compras en tránsito y propone qué reponer (lead time 6 semanas, cobertura objetivo 8 semanas), dejando la propuesta en un Google Sheet que revisa Compras. | **[Servicio en marcha](https://eme-reposicion-761842722633.europe-southwest1.run.app)** · `service/` · `output/reto2/` |
-| **3 · Hoja de ruta de IA a 6 meses** | 30 % | Qué haría en los 6 primeros meses para que la IA ayude a Compras, Ventas, Planificación, Logística, Producto, Marketing y Atención al cliente. | `docs/reto3_roadmap_ia.md` · `output/reto3/` |
+| **3 · Hoja de ruta de IA a 6 meses** | 30 % | Doce iniciativas para los siete departamentos, priorizadas por impacto y esfuerzo sobre las cifras reales del caso, con calendario a seis meses, KPIs y plan de adopción. Vive como **cinco páginas del propio informe**. | `output/reto1/` (sección Reto 3) · `docs/reto3_roadmap_ia.md` · `output/reto3/` |
 
 El enunciado original está en [`docs/enunciado/`](docs/enunciado/).
 Las reglas de negocio, los parámetros y las definiciones de KPIs están en
@@ -45,8 +45,10 @@ Las reglas de negocio, los parámetros y las definiciones de KPIs están en
 │   └── decisiones.py         # Lee docs/decisiones.md para la página de trazabilidad
 ├── Dockerfile                # Imagen del servicio
 ├── pipelines/
+│   ├── run_todo.py           # Retos 1 y 3 de una vez
 │   ├── run_reto1.py          # clean → metrics → report
-│   └── run_reto2.py          # clean → forecast → replenishment → export
+│   ├── run_reto2.py          # clean → forecast → replenishment → export
+│   └── run_reto3.py          # roadmap → docs/reto3_roadmap_ia.md + output/reto3
 ├── notebooks/                # Exploración puntual · no es código de entrega
 ├── output/
 │   ├── reto1/                # Informe semanal HTML
@@ -81,11 +83,15 @@ Coloca el fichero `EME_Caso_Practico_Datos.xlsx` en `data/raw/`.
 ```bash
 source .venv/bin/activate
 
-# Reto 1 · informe semanal → output/reto1/
-python pipelines/run_reto1.py
+# Retos 1 y 3 · el informe completo → output/reto1/ y docs/
+python pipelines/run_todo.py
+```
 
-# Reto 2 · propuesta de reposición → output/reto2/
-python pipelines/run_reto2.py
+El Reto 2 no entra ahí porque no se genera, se ejecuta: está desplegado y se
+lanza solo cada día. Para reproducirlo en local:
+
+```bash
+python pipelines/run_reto2.py   # propuesta de reposición → output/reto2/
 ```
 
 ### El servicio del Reto 2

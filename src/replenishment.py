@@ -358,6 +358,51 @@ def parametros_usados(
     return pd.DataFrame(filas, columns=["parámetro", "valor", "por qué"])
 
 
+def historico_y_prevision(
+    ventas: pd.DataFrame,
+    stock_semanal: pd.DataFrame,
+    curva: pd.DataFrame,
+    semanas_atras: int = 52,
+) -> pd.DataFrame:
+    """Serie semanal de venta y de stock, con la previsión pegada al final.
+
+    Es el gráfico que enseña de dónde sale la propuesta: a la izquierda del corte
+    todo es dato observado, a la derecha todo lo dice el modelo. El stock previsto
+    es el que quedaría **si no se repusiera nada**, así que el punto donde la línea
+    toca el suelo es la fecha de la rotura.
+
+    La venta observada excluye el precio especial, igual que hace la previsión:
+    si una mitad del gráfico incluyera las liquidaciones y la otra no, el salto en
+    el corte sería del método y no del negocio.
+    """
+    corte = pd.Timestamp(config.FECHA_CORTE_DATOS)
+    desde = corte - pd.Timedelta(weeks=semanas_atras)
+
+    v = ventas[~ventas["is_special"]]
+    venta = (
+        v[v["inicio_semana"] >= desde]
+        .groupby("inicio_semana")["unidades"].sum().rename("demanda")
+    )
+    stock = (
+        stock_semanal[stock_semanal["inicio_semana"] >= desde]
+        .groupby("inicio_semana")["stock_fin"].sum().rename("stock")
+    )
+    historico = pd.concat([venta, stock], axis=1).reset_index()
+    historico["tipo"] = "observado"
+
+    futuro = curva[["inicio_semana", "unidades"]].rename(
+        columns={"unidades": "demanda"}).copy()
+    nivel = float(historico["stock"].iloc[-1])
+    niveles = []
+    for demanda in futuro["demanda"]:
+        nivel = max(nivel - float(demanda), 0.0)
+        niveles.append(nivel)
+    futuro["stock"] = niveles
+    futuro["tipo"] = "previsto"
+
+    return pd.concat([historico, futuro], ignore_index=True)
+
+
 def generar_propuesta(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
     """Orquesta forecast → necesidad → propuesta y devuelve todas las tablas.
 
@@ -384,6 +429,8 @@ def generar_propuesta(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame
         "parametros": parametros_usados(prevision=prevision),
         "comparativa_metodos": comparativa,
         "curva_semanal": curva,
+        "historico_prevision": historico_y_prevision(
+            tablas["ventas"], tablas["stock_semanal"], curva),
         "error_forecast": comparativa,
     }
 

@@ -187,8 +187,8 @@ unidades a pedir.">
 <text class="d-v d-ok" x="1056" y="390" text-anchor="end">pedir {num(ej['unidades_propuestas'])} uds</text>
 <text class="d-s" x="1056" y="410" text-anchor="end">{eur(ej['coste_pedido'])} a precio de coste</text>
 </svg></div>
-<p class="pie">Una línea real de la propuesta de hoy, de arriba abajo. El modelo nunca
-predice el SKU directamente: predice la categoría —donde hay señal— y baja por el reparto.</p>
+<p class="pie">Una línea real de la propuesta de hoy, de arriba abajo. El modelo predice
+la categoría, donde hay señal, y baja al SKU por el reparto.</p>
 </figure>"""
 
 
@@ -240,6 +240,78 @@ mantiene alta en diciembre y cae por debajo de 150 en enero.">
 plano:</strong> entre la primera semana y la peor de enero hay un factor de
 {num(curva["unidades"].max() / max(curva["unidades"].min(), 1), 1)}. Proyectar el ritmo
 actual sin más daría {num(ritmo * len(curva))} uds; el modelo dice {num(total)}.</p>
+</figure>"""
+
+
+def grafico_historico(serie: pd.DataFrame) -> str:
+    """Stock y venta semanales, con la previsión del modelo pegada al final.
+
+    Dos paneles que comparten el eje de tiempo en lugar de dos ejes en el mismo
+    marco: el stock se mueve entre 13.000 y 16.000 unidades y la venta entre 150
+    y 500, así que superponerlos obligaría a un segundo eje y a creerse la escala.
+
+    A la izquierda de la línea de corte todo es dato observado; a la derecha, lo
+    que dice el modelo. El stock previsto es el que quedaría sin reponer nada.
+    """
+    x0, x1 = 58, 1100
+    paso = (x1 - x0) / (len(serie) - 1)
+    n_obs = int((serie["tipo"] == "observado").sum())
+    x_corte = x0 + paso * (n_obs - 1)
+
+    def ruta(col, desde, hasta, y_sup, y_inf, techo, cerrada=False):
+        puntos = [
+            f"{x0 + paso * i:.1f},{y_inf - (serie[col].iloc[i] / techo) * (y_inf - y_sup):.1f}"
+            for i in range(desde, hasta)
+        ]
+        d = "M" + "L".join(puntos)
+        if cerrada:
+            d += f"L{x0 + paso * (hasta - 1):.1f},{y_inf}L{x0 + paso * desde:.1f},{y_inf}Z"
+        return d
+
+    techo_stock = float(serie["stock"].max()) * 1.12
+    techo_venta = float(serie["demanda"].max()) * 1.18
+    paneles = []
+    for col, titulo, y_sup, y_inf, techo, gris in (
+        ("stock", "Unidades en el almacén", 34, 140, techo_stock, True),
+        ("demanda", "Unidades vendidas por semana", 196, 296, techo_venta, False),
+    ):
+        clase = "g-linea gris" if gris else "g-linea"
+        masa = (
+            f'<path class="g-masa" d="{ruta(col, 0, len(serie), y_sup, y_inf, techo, True)}"/>'
+            if gris else ""
+        )
+        paneles.append(
+            f'<text class="g-tit" x="{x0}" y="{y_sup - 12:.0f}">{titulo}</text>'
+            f'{masa}'
+            f'<line class="g-eje" x1="{x0}" y1="{y_inf}" x2="{x1}" y2="{y_inf}"/>'
+            f'<path class="{clase}" d="{ruta(col, 0, n_obs, y_sup, y_inf, techo)}"/>'
+            f'<path class="{clase} prev" d="{ruta(col, n_obs - 1, len(serie), y_sup, y_inf, techo)}"/>'
+            f'<line class="g-corte" x1="{x_corte:.1f}" y1="{y_sup - 6}" '
+            f'x2="{x_corte:.1f}" y2="{y_inf}"/>'
+            f'<text class="g-val" x="{x1}" y="{y_sup - 12:.0f}" text-anchor="end">'
+            f'{num(serie[col].iloc[n_obs - 1])} hoy</text>'
+        )
+
+    # Una marca de mes cada cuatro semanas, para no apelmazar el eje.
+    marcas = "".join(
+        f'<text class="g-sem" x="{x0 + paso * i:.1f}" y="312" text-anchor="middle">'
+        f'{serie["inicio_semana"].iloc[i].day} {MESES_CORTOS[serie["inicio_semana"].iloc[i].month - 1]}</text>'
+        for i in range(0, len(serie), 5)
+    )
+    sombra = (f'<rect class="g-area-prev" x="{x_corte:.1f}" y="28" '
+              f'width="{x1 - x_corte:.1f}" height="268" rx="4"/>')
+
+    cae = serie["stock"].iloc[-1] - serie["stock"].iloc[n_obs - 1]
+    return f"""<figure style="margin:0"><div class="figura">
+<svg viewBox="0 0 1120 322" role="img" aria-label="Stock semanal en el almacén y unidades
+vendidas por semana durante el último año, con las {len(serie) - n_obs} semanas siguientes
+previstas por el modelo.">
+{sombra}{"".join(paneles)}{marcas}</svg></div>
+<p class="pie">Línea continua, dato observado. Discontinua, previsión del modelo.
+El stock de la derecha es el que quedaría <strong>sin reponer nada</strong>: en
+{len(serie) - n_obs} semanas bajaría {num(abs(cae))} unidades, de {num(serie["stock"].iloc[n_obs - 1])}
+a {num(serie["stock"].iloc[-1])}. Esa es la forma del problema: la venta sube y baja con la
+temporada y el almacén apenas se mueve.</p>
 </figure>"""
 
 
@@ -497,6 +569,11 @@ def pagina_metodo(r: Dict[str, pd.DataFrame]) -> str:
 {diagrama_calculo(r)}
 
 <section class="bloque">
+<h2>Un año de venta y de stock, y lo que viene</h2>
+{grafico_historico(r["historico_prevision"])}
+</section>
+
+<section class="bloque">
 <h2>Cómo se predice la demanda</h2>
 <p class="nota">Un modelo entrenado con las 95 semanas de histórico. Mira cuatro cosas de
 cada categoría —<strong>cómo viene vendiendo</strong>, <strong>qué hizo en esta misma época
@@ -510,34 +587,42 @@ solo está a cero el 6 %. <strong>Se predice donde hay señal y se reparte despu
 </section>
 
 <section class="bloque">
-<h2>La previsión no es un ritmo plano</h2>
+<h2>La previsión sigue la estacionalidad</h2>
 {grafico_curva(r["curva_semanal"])}
-<p class="nota" style="margin-top:14px">Es la diferencia que importa: diciembre tira, enero se
-desploma, y el modelo lo sabe porque lo ha visto en el histórico. Un método que proyectase el
-ritmo actual compraría para un enero que no va a llegar.</p>
+<p class="nota" style="margin-top:14px">Diciembre tira y enero se desploma, y el modelo lo ha
+visto en el histórico. Un método que proyectase el ritmo actual compraría para un enero que no
+va a llegar.</p>
 </section>
 
 <section class="bloque">
-<h2>Por qué este método y no otro</h2>
-<p class="nota" style="margin-bottom:12px">El modelo es un <strong>gradient boosting sobre
-árboles de decisión</strong> (<code>HistGradientBoostingRegressor</code>), entrenado con
-<strong>las diez categorías a la vez</strong>. Eso último es lo que lo hace ganar: estima el
-patrón estacional con diez veces más datos que un modelo por serie.</p>
-<p class="nota">Cuatro candidatos sobre 12 cortes del histórico, entrenando en cada uno solo
-con lo anterior al corte. Se queda el que menos se equivoca:</p>
+<h2>Por qué este modelo</h2>
+<ol class="razones">
+  <li><b>Gana el backtesting.</b> 12 cortes del histórico, entrenando en cada uno solo con lo
+  anterior. Es el que menos se equivoca de los cinco probados.</li>
+  <li><b>Entrena las diez categorías juntas.</b> Estima la estacionalidad con diez veces más
+  datos que un modelo por serie.</li>
+  <li><b>Le bastan 95 semanas.</b> Un modelo con más grados de libertad necesita más ciclos
+  anuales y se desboca con los que hay.</li>
+  <li><b>Cabe en el contenedor.</b> scikit-learn ya viene; Prophet añadiría 100 MB y 13 s a
+  cada ejecución.</li>
+  <li><b>Es determinista.</b> La misma entrada da la misma propuesta, y Compras puede auditar
+  línea a línea de dónde sale cada unidad.</li>
+</ol>
+<p class="nota" style="margin-top:16px">Es un <strong>gradient boosting sobre árboles</strong>
+(<code>HistGradientBoostingRegressor</code>). La tabla es el backtesting completo: error medio
+por SKU y desvío sobre el total.</p>
 <div class="tabla-caja" style="margin-top:12px;max-height:none"><table style="min-width:480px">
 <thead><tr><th>Método</th><th style="text-align:right">Error por SKU</th>
 <th style="text-align:right">Desvío del total</th></tr></thead><tbody>{filas}</tbody></table></div>
 <p class="nota" style="margin-top:12px"><strong>Sobre Prophet:</strong> se probó en cinco
-configuraciones. Lo revelador no es que pierda, sino <em>cómo</em>: mejora cuanto más se le
-ata la tendencia. Ésa es la firma de un modelo con demasiados grados de libertad para 95
-semanas de datos —menos de dos ciclos anuales— con los que estimar una estacionalidad anual.</p>
+configuraciones. Pierde, y mejora cuanto más se le ata la tendencia. Ésa es la firma de un
+modelo con demasiados grados de libertad para 95 semanas de datos, menos de dos ciclos anuales
+con los que estimar una estacionalidad anual.</p>
 </section>
 
 <section class="bloque">
 <h2>Y una línea donde no se pide nada</h2>
-<p class="nota">El caso contrario explica por qué la propuesta es corta: casi todo el
-catálogo está cubierto de sobra.</p>
+<p class="nota">La propuesta es corta porque casi todo el catálogo está cubierto de sobra.</p>
 <div class="calculo">{esc(cub['modelo_nombre'])} · talla {esc(cub['talla'])}
 
   demanda prevista a {HORIZONTE} semanas  = {num(cub['demanda_horizonte'])} uds
@@ -545,19 +630,19 @@ catálogo está cubierto de sobra.</p>
   − ya vienen de camino           = {num(cub['en_transito'])}
   ──────────────────────────────────────
   = <span style="color:var(--tinta-3)">no se pide nada</span>   ·   sobran {num(cub['stock_disponible'] + cub['en_transito'] - cub['demanda_horizonte'])} uds</div>
-<p class="nota" style="margin-top:12px">La prioridad la marca <em>cuándo rompe</em>, no cuánto
-se pide: si el stock no aguanta las {config.LEAD_TIME_SEMANAS} semanas que tarda el proveedor,
-la rotura ya está comprada.</p>
+<p class="nota" style="margin-top:12px">La prioridad la marca <em>cuándo rompe</em>. Si el stock
+no aguanta las {config.LEAD_TIME_SEMANAS} semanas que tarda el proveedor, la rotura ya está
+comprada.</p>
 </section>
 
 <section class="bloque">
 <h2>Lo que no hace</h2>
 <div class="tarjetas">
   {tarjeta("Límite", "Productos nuevos",
-           "<p>Un modelo sin lanzar no tiene ventas de las que aprender: sale con demanda cero.</p>")}
+           "<p>Un modelo sin lanzar no tiene ventas de las que aprender, así que sale con demanda cero.</p>")}
   {tarjeta("Límite", "Rebajas dentro del horizonte",
            "<p>Las últimas semanas caen en rebajas. Comprar a coste completo para vender con "
-           "descuento es caro: el horizonte debería acotarse al fin de temporada.</p>")}
+           "descuento sale caro. El horizonte debería acotarse al fin de temporada.</p>")}
 </div>
 </section>"""
     return layout("Cómo funciona", "/metodo", cuerpo)
@@ -607,8 +692,8 @@ def pagina_produccion() -> str:
            "<p style='margin-top:8px'>Nunca se publica una propuesta a medias.</p>")}
 </div>
 <div class="aviso" style="margin-top:18px"><strong>El sistema nunca pide por su cuenta.</strong>
-Y lo que Compras cambia respecto a lo propuesto es la mejor señal que hay para mejorar el
-modelo: se guarda y se compara.</div>
+Lo que Compras cambia se guarda y se compara con lo propuesto. Es la mejor señal para afinar
+el modelo.</div>
 </section>
 
 <section class="bloque">
@@ -626,13 +711,12 @@ mover stock entre almacenes antes que pedir.<br>
 # --- página 4 · decisiones -------------------------------------------------
 
 def pagina_decisiones() -> str:
-    """Solo las decisiones propias del Reto 2, y solo qué se decidió y qué cambia.
+    """Las seis decisiones sin las que no se entienden las cifras de la propuesta.
 
-    El log completo está en el repositorio con su contexto y su evidencia. Aquí se
-    enseña lo que alguien necesita para fiarse de las cifras, no el historial de
-    cómo se llegó a ellas.
+    Se marcan en `docs/decisiones.md` con el campo `Clave`. El resto del log sigue
+    ahí con su contexto y su evidencia; esta página no es el historial.
     """
-    ds = [d for d in mod_decisiones.del_reto("2") if d.fecha >= "2026-11-17"]
+    ds = [d for d in mod_decisiones.del_reto("2") if d.campos.get("clave")]
     bloques = "".join(
         f'<details><summary>{esc(d.titulo)}<span class="fecha">{esc(d.fecha)}</span></summary>'
         f'<div class="cuerpo">'
@@ -644,10 +728,9 @@ def pagina_decisiones() -> str:
     )
     cuerpo = f"""
 {cabecera("Trazabilidad", "Decisiones",
-          f"Las {len(ds)} decisiones que explican estas cifras. Pulsa para ver qué número "
-          "cambia por cada una.")}
-<div class="aviso">Se genera desde <code>docs/decisiones.md</code>, no está escrita a mano.
-El contexto completo y la evidencia de cada una están en ese fichero.</div>
+          f"Las {len(ds)} que cambian las cifras. Pulsa cada una para ver cuál.")}
+<div class="aviso">Se genera desde <code>docs/decisiones.md</code>, donde está el log completo
+con su contexto y su evidencia.</div>
 <div style="margin-top:20px">{bloques}</div>"""
     return layout("Decisiones", "/decisiones", cuerpo)
 
@@ -678,5 +761,5 @@ def pagina_historico(ejecuciones: List[dict]) -> str:
 {tabla}
 <div class="aviso" style="margin-top:20px"><strong>Por qué se repiten las cifras:</strong>
 los datos del caso están congelados, así que cada ejecución parte del mismo punto y llega al
-mismo resultado. Lo que demuestra este historial es el mecanismo, no la variación.</div>"""
+mismo resultado. Este historial enseña el mecanismo.</div>"""
     return layout("Ejecuciones", "/historico", cuerpo)

@@ -117,6 +117,12 @@ details[open] summary{{border-bottom:1px solid var(--linea)}}
   color:var(--acento)}}
 .tarjeta p{{color:var(--tinta-2);font-size:.92rem}}
 .tarjeta ul{{margin:0;padding-left:18px;color:var(--tinta-2);font-size:.92rem}}
+/* Lista numerada de razones: el número en acento, la razón en negrita y el
+   detalle en gris, para que se lea de un vistazo sin leerla entera. */
+.razones{{margin:14px 0 0;padding-left:20px;color:var(--tinta-2);font-size:.92rem;line-height:1.55}}
+.razones li{{margin-bottom:7px}}
+.razones li::marker{{color:var(--acento);font-weight:600}}
+.razones b{{color:var(--tinta)}}
 .tarjeta li{{margin-bottom:5px}}
 
 .calculo{{background:var(--superficie);border:1px solid var(--linea);border-radius:12px;
@@ -153,6 +159,17 @@ code{{font-family:var(--mono);font-size:.88em;background:var(--superficie-2);
 .g-val{{font-size:9.5px;fill:var(--tinta-2);font-variant-numeric:tabular-nums}}
 .g-sem{{font-size:9px;fill:var(--tinta-3)}}
 .g-ref-t{{font-size:10px;fill:var(--tinta-3)}}
+/* Serie observada y serie prevista. La discontinua no es decoración: marca
+   dónde acaba el dato y empieza el modelo. */
+.g-linea{{fill:none;stroke:var(--acento);stroke-width:2;stroke-linejoin:round}}
+.g-linea.gris{{stroke:var(--tinta-3)}}
+.g-linea.prev{{stroke-dasharray:5 4}}
+.g-area-prev{{fill:var(--acento);opacity:.05}}
+/* El stock se pinta como masa, no como línea: lo que cuenta es el volumen
+   parado, y una línea plana arriba del panel dejaba medio panel vacío. */
+.g-masa{{fill:var(--tinta-3);opacity:.14}}
+.g-corte{{stroke:var(--tinta-3);stroke-width:1;stroke-dasharray:3 3}}
+.g-tit{{font-size:11px;fill:var(--tinta-2);font-weight:600}}
 .bx-warn-l{{fill:var(--superficie-2);stroke:var(--linea);stroke-width:1;stroke-dasharray:5 4}}
 .leyenda{{display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;font-size:.8rem;color:var(--tinta-2)}}
 .leyenda span{{display:inline-flex;align-items:center;gap:7px}}
