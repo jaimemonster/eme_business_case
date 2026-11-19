@@ -257,7 +257,7 @@ def construir_propuesta(necesidad: pd.DataFrame) -> pd.DataFrame:
     prop["unidades_aprobadas"] = ""
 
     columnas = [
-        "prioridad", "sku", "modelo_nombre", "color", "talla", "seccion", "categoria",
+        "prioridad", "sku", "modelo_id", "modelo_nombre", "color", "talla", "seccion", "categoria",
         "proveedor_habitual", "demanda_semanal", "cobertura_semanas",
         "stock_disponible", "en_transito", "demanda_horizonte",
         "unidades_propuestas", "coste_pedido", "venta_en_riesgo",
@@ -358,49 +358,144 @@ def parametros_usados(
     return pd.DataFrame(filas, columns=["parámetro", "valor", "por qué"])
 
 
-def historico_y_prevision(
+def _serie_una(
     ventas: pd.DataFrame,
     stock_semanal: pd.DataFrame,
-    curva: pd.DataFrame,
-    semanas_atras: int = 52,
+    compras: pd.DataFrame,
+    futuro: pd.DataFrame,
+    desde: pd.Timestamp,
+    skus: set | None = None,
+    pedido: float = 0.0,
 ) -> pd.DataFrame:
-    """Serie semanal de venta y de stock, con la previsión pegada al final.
+    """Venta y stock semanales observados, con la previsión pegada al final.
 
-    Es el gráfico que enseña de dónde sale la propuesta: a la izquierda del corte
-    todo es dato observado, a la derecha todo lo dice el modelo. El stock previsto
-    es el que quedaría **si no se repusiera nada**, así que el punto donde la línea
-    toca el suelo es la fecha de la rotura.
+    `skus` acota a un modelo; sin él, todo el catálogo.
 
-    La venta observada excluye el precio especial, igual que hace la previsión:
-    si una mitad del gráfico incluyera las liquidaciones y la otra no, el salto en
-    el corte sería del método y no del negocio.
+    La proyección de stock **suma lo que ya viene de camino**: hay 9.427 unidades
+    pedidas que llegan en las próximas siete semanas, y una línea que las ignorase
+    enseñaría el almacén vaciándose cuando en realidad va a crecer.
+
+    Se devuelven dos proyecciones y la gracia es compararlas: `stock` es lo que
+    quedaría **sin pedir nada más**, y `stock_con_pedido` añade las unidades
+    propuestas el día que llegarían, seis semanas después de firmar.
+
+    La venta se parte en dos: `demanda` es la venta a precio completo, que es la
+    que alimenta la previsión, y `demanda_especial` es la liquidación. Sin esa
+    separación la semana de Black Friday parece una caída de ventas cuando lo que
+    cambia es el precio, no el volumen.
     """
-    corte = pd.Timestamp(config.FECHA_CORTE_DATOS)
-    desde = corte - pd.Timedelta(weeks=semanas_atras)
+    v = ventas[ventas["inicio_semana"] >= desde]
+    s = stock_semanal
+    c = compras[(~compras["ha_llegado"]) & (~compras["esta_vencida"])]
+    if skus is not None:
+        v, s, c = v[v["sku"].isin(skus)], s[s["sku"].isin(skus)], c[c["sku"].isin(skus)]
 
-    v = ventas[~ventas["is_special"]]
-    venta = (
-        v[v["inicio_semana"] >= desde]
-        .groupby("inicio_semana")["unidades"].sum().rename("demanda")
-    )
+    venta = v[~v["is_special"]].groupby("inicio_semana")["unidades"].sum().rename("demanda")
+    especial = v[v["is_special"]].groupby("inicio_semana")["unidades"].sum().rename("demanda_especial")
     stock = (
-        stock_semanal[stock_semanal["inicio_semana"] >= desde]
+        s[s["inicio_semana"] >= desde]
         .groupby("inicio_semana")["stock_fin"].sum().rename("stock")
     )
-    historico = pd.concat([venta, stock], axis=1).reset_index()
+    historico = pd.concat([venta, especial, stock], axis=1).reset_index()
+    cols = ["demanda", "demanda_especial", "stock"]
+    historico[cols] = historico[cols].fillna(0)
     historico["tipo"] = "observado"
 
-    futuro = curva[["inicio_semana", "unidades"]].rename(
-        columns={"unidades": "demanda"}).copy()
-    nivel = float(historico["stock"].iloc[-1])
-    niveles = []
-    for demanda in futuro["demanda"]:
-        nivel = max(nivel - float(demanda), 0.0)
-        niveles.append(nivel)
-    futuro["stock"] = niveles
-    futuro["tipo"] = "previsto"
+    inicial = float(historico["stock"].iloc[-1]) if len(historico) else 0.0
+    historico["stock_con_pedido"] = historico["stock"]
 
-    return pd.concat([historico, futuro], ignore_index=True)
+    # Lo que ya está pedido y llega dentro del horizonte, semana a semana.
+    llegadas = (
+        c.assign(sem=c["fecha_llegada_efectiva"].dt.to_period("W").dt.start_time)
+        .groupby("sem")["unidades"].sum()
+    )
+
+    fut = futuro.copy()
+    fut["llega"] = [float(llegadas.get(pd.Timestamp(w), 0.0)) for w in fut["inicio_semana"]]
+
+    nivel, con = inicial, inicial
+    sin_pedido, con_pedido = [], []
+    for k, (demanda, llega) in enumerate(zip(fut["demanda"], fut["llega"]), start=1):
+        nivel = max(nivel + float(llega) - float(demanda), 0.0)
+        # El pedido que se firma hoy entra en el almacén cuando pasa el plazo del
+        # proveedor, no antes. Por eso el escalón cae en la semana 6.
+        con += float(llega) + (pedido if k == config.LEAD_TIME_SEMANAS else 0.0)
+        con = max(con - float(demanda), 0.0)
+        sin_pedido.append(nivel)
+        con_pedido.append(con)
+    fut["stock"] = sin_pedido
+    fut["stock_con_pedido"] = con_pedido
+    fut["demanda_especial"] = 0.0
+    fut["tipo"] = "previsto"
+    return pd.concat([historico, fut], ignore_index=True)
+
+
+def historico_y_prevision(
+    tablas: Dict[str, pd.DataFrame],
+    curva: pd.DataFrame,
+    curva_grupo: pd.DataFrame,
+    prevision: pd.DataFrame,
+    propuesta: pd.DataFrame,
+    semanas_atras: int = 52,
+) -> pd.DataFrame:
+    """Las series del gráfico: el catálogo entero y cada modelo de la propuesta.
+
+    Se calculan todas de una vez y viajan en una sola tabla con `modelo_id`
+    (vacío para el total). Así el selector de la web solo filtra: no recalcula
+    nada en cada visita.
+
+    La curva de un modelo **hereda la forma estacional de su categoría**, que es
+    donde el modelo tiene señal, escalada por el peso del modelo dentro de ella.
+    Es el mismo reparto que usa la propuesta, no una segunda estimación.
+
+    La venta observada excluye el precio especial, igual que la previsión: si una
+    mitad del gráfico incluyera las liquidaciones y la otra no, el salto en el
+    corte sería del método y no del negocio.
+    """
+    desde = pd.Timestamp(config.FECHA_CORTE_DATOS) - pd.Timedelta(weeks=semanas_atras)
+    ventas, stock_semanal = tablas["ventas"], tablas["stock_semanal"]
+    compras = tablas["compras"]
+
+    pedidas = propuesta.groupby("modelo_id")["unidades_propuestas"].sum() \
+        if "modelo_id" in propuesta.columns else pd.Series(dtype=float)
+
+    total = curva[["inicio_semana", "unidades"]].rename(columns={"unidades": "demanda"})
+    series = [
+        _serie_una(ventas, stock_semanal, compras, total, desde, pedido=float(pedidas.sum()))
+        .assign(modelo_id="", modelo_nombre="Todo el catálogo")
+    ]
+
+    por_grupo = curva_grupo.groupby("grupo") if "grupo" in curva_grupo.columns else None
+    peso_grupo = prevision.groupby("grupo")["demanda_horizonte"].sum()
+
+    # La propuesta va por SKU y no lleva `modelo_id`: se recupera del catálogo.
+    # Solo entran los modelos que aparecen en la propuesta, que son los que a
+    # Compras le interesa mirar de cerca.
+    modelos = (
+        tablas["producto"][tablas["producto"]["sku"].isin(propuesta["sku"])]
+        [["modelo_id", "modelo_nombre"]]
+        .drop_duplicates()
+        .sort_values("modelo_nombre")
+    )
+    for _, m in modelos.iterrows():
+        filas = prevision[prevision["modelo_id"] == m["modelo_id"]]
+        if filas.empty:
+            continue
+        grupo = filas["grupo"].iloc[0]
+        cuota = filas["demanda_horizonte"].sum() / max(peso_grupo.get(grupo, 0.0), 1e-9)
+        if por_grupo is not None and grupo in curva_grupo["grupo"].values:
+            forma = curva_grupo[curva_grupo["grupo"] == grupo]
+        else:
+            forma = curva
+        fut = forma[["inicio_semana", "unidades"]].copy()
+        fut["demanda"] = fut.pop("unidades") * cuota
+        series.append(
+            _serie_una(ventas, stock_semanal, compras, fut, desde, set(filas["sku"]),
+                       pedido=float(pedidas.get(m["modelo_id"], 0.0)))
+            .assign(modelo_id=m["modelo_id"], modelo_nombre=m["modelo_nombre"])
+        )
+
+    return pd.concat(series, ignore_index=True)
 
 
 def generar_propuesta(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
@@ -413,7 +508,7 @@ def generar_propuesta(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame
     # La previsión no la calcula este módulo: viene de `demand`, que elige el
     # método por backtesting y devuelve la tabla que lo justifica. Esa tabla
     # viaja hasta el entregable: el método no se defiende por convicción.
-    prevision, comparativa, curva = demand.generar_prevision(tablas, semanas)
+    prevision, comparativa, curva, curva_grupo = demand.generar_prevision(tablas, semanas)
 
     necesidad = calcular_necesidad(
         prevision, tablas["stock"], tablas["compras"], tablas["producto"]
@@ -430,7 +525,7 @@ def generar_propuesta(tablas: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame
         "comparativa_metodos": comparativa,
         "curva_semanal": curva,
         "historico_prevision": historico_y_prevision(
-            tablas["ventas"], tablas["stock_semanal"], curva),
+            tablas, curva, curva_grupo, prevision, propuesta),
         "error_forecast": comparativa,
     }
 

@@ -58,6 +58,7 @@ Las reglas de negocio, los parámetros y las definiciones de KPIs están en
     ├── enunciado/                        # Enunciado original del caso (PDF)
     ├── notas_calidad_datos.md            # Problemas encontrados en los datos y su tratamiento
     ├── decisiones.md                     # Log de decisiones y supuestos, con fecha
+    ├── presentacion.md                   # Enlace al guion de 20 diapositivas (Google Slides)
     ├── reto2_arquitectura_produccion.md  # Cómo funcionaría el proceso en producción
     ├── reto2_infraestructura.md          # Montaje real del despliegue y problemas resueltos
     └── reto3_roadmap_ia.md               # Hoja de ruta de IA a 6 meses
