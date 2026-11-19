@@ -663,8 +663,9 @@ va a llegar.</p>
   datos que un modelo por serie.</li>
   <li><b>Le bastan 95 semanas.</b> Un modelo con más grados de libertad necesita más ciclos
   anuales y se desboca con los que hay.</li>
-  <li><b>Cabe en el contenedor.</b> scikit-learn ya viene; Prophet añadiría 100 MB y 13 s a
-  cada ejecución.</li>
+  <li><b>Cabe en el contenedor.</b> scikit-learn ya viaja con el servicio. Cada candidato
+  extra son 12 s de arranque, así que aquí se comparan cuatro y el banco completo se
+  reproduce con un script.</li>
   <li><b>Es determinista.</b> La misma entrada da la misma propuesta, y Compras puede auditar
   línea a línea de dónde sale cada unidad.</li>
 </ol>
