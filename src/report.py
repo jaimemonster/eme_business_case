@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime as _dt
 from pathlib import Path
-from typing import Dict, Iterable, Sequence
+from typing import Dict, Iterable, List, Sequence
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -20,7 +20,7 @@ from plotly.subplots import make_subplots
 import plotly.io
 import plotly.offline
 
-from . import config, design
+from . import config, design, roadmap
 from .metrics import UMBRAL_EXCESO_SEMANAS
 from .design import TOKENS, kpi, plantilla_grafico
 
@@ -482,7 +482,9 @@ def grafico_mapa_modelos(df: pd.DataFrame) -> go.Figure:
             )
         )
     plantilla_grafico(fig, altura=360)
-    fig.add_hline(y=umbral, line=dict(color=C["linea"], width=1))
+    # La línea del umbral usa el gris de contexto, no el de rejilla: con el de
+    # rejilla se perdía contra el fondo de la tarjeta.
+    fig.add_hline(y=umbral, line=dict(color=C["referencia"], width=1))
     fig.add_annotation(
         x=1, xref="paper", y=umbral, yanchor="bottom", xanchor="right",
         text=f"sell-through {umbral:.0f} %", showarrow=False,
@@ -674,11 +676,10 @@ def _seccion_semana(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     frente a {eur(crec.iloc[1]['precio_medio_ud'], 2)}</div></div>
 </div>
 <p class="nota" style="max-width:70ch">La facturación por unidad es
-<code>facturación neta ÷ unidades</code>: lo que deja de media cada prenda vendida, ya descontados los
-cupones. Sube un {num(var['precio_medio_ud'], 1)}&nbsp;%, pero <strong>no porque se venda más caro</strong>:
-con la mezcla de producto del año pasado habría <em>bajado</em> un {num(abs(mezcla['efecto_precio_pct']), 1)}&nbsp;%.
-La subida es mezcla: la chaqueta pasa del {num(chaqueta_ly, 1)}&nbsp;% al {num(chaqueta_hoy, 1)}&nbsp;% de las
-unidades y es la categoría más cara.</p>"""
+<code>facturación neta ÷ unidades</code>, ya descontados los cupones. Sube un {num(var['precio_medio_ud'], 1)}&nbsp;%.
+Con la mezcla de producto del año pasado habría <em>bajado</em> un {num(abs(mezcla['efecto_precio_pct']), 1)}&nbsp;%.
+Lo que cambia es el peso de la chaqueta, que pasa del {num(chaqueta_ly, 1)}&nbsp;% al
+{num(chaqueta_hoy, 1)}&nbsp;% de las unidades y es la categoría más cara.</p>"""
 
     div_id = "g-evolucion"
     evol = m["evolucion_semanal"]
@@ -690,9 +691,8 @@ unidades y es la categoría más cara.</p>"""
            ("Variación interanual", (C["positivo"], C["negativo"])))}
   {html_grafico}
   {registrar(div_id, grupos, ejes)}
-  <p class="nota">Arriba, las últimas 26 semanas frente a la misma semana ISO del año anterior.
-  Abajo, la variación interanual de cada una. Como en todo el informe, <strong>sin las ventas a precio
-  especial</strong>: son liquidación de campaña y harían parecer buena una semana de rebajas.</p>
+  <p class="nota">Arriba, las últimas 26 semanas frente a la misma semana ISO del año anterior. Abajo,
+  la variación interanual. Como en todo el informe, <strong>sin las ventas a precio especial</strong>.</p>
 </div>
 <div class="card" style="margin-top:20px">{tabla}</div>
 <h3 style="margin-top:36px">De dónde sale el crecimiento interanual</h3>
@@ -764,9 +764,9 @@ def _seccion_reparto(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 <div class="card" style="margin-top:20px"><h3>Por sección</h3>{t_sec}</div>
 
 <h3 style="margin-top:36px">Qué parte se vendió a precio especial</h3>
-<p>Ninguna esta semana. Como el resto del informe excluye el precio especial, esta tabla es el único
-sitio donde aparece su peso: en lo que va de año es el {pct_uds_ano}&nbsp;% de las unidades pero solo el
-{pct_eur_ano}&nbsp;% de la facturación, porque cada unidad rebajada ingresa un 40&nbsp;% menos.</p>
+<p>Ninguna esta semana. Esta tabla es el único sitio del informe donde aparece su peso. En lo que va
+de año es el {pct_uds_ano}&nbsp;% de las unidades y el {pct_eur_ano}&nbsp;% de la facturación, porque
+cada unidad rebajada ingresa un 40&nbsp;% menos.</p>
 <div class="card" style="margin-top:16px">{t_especial}</div>
 
 <h3 style="margin-top:36px">Y se concentra en campañas</h3>
@@ -776,33 +776,30 @@ sitio donde aparece su peso: en lo que va de año es el {pct_uds_ano}&nbsp;% de 
   {leyenda(("A precio especial", C["acento"]), ("A precio completo", C["referencia"]))}
   {html_grafico}
   {registrar(div_id, grupos, ejes)}
-  <p class="nota">«A precio completo» es toda la venta que no es liquidación, e incluye las líneas con
-  cupón WELCOME10. Los dos trozos de cada barra suman el total del mes. En euros el precio especial pesa
-  menos que en unidades: cada unidad rebajada factura en torno a un 40&nbsp;% menos.</p>
+  <p class="nota">«A precio completo» es toda la venta que no es liquidación, incluidas las líneas con
+  cupón WELCOME10. Los dos trozos de cada barra suman el total del mes. Cada unidad rebajada factura en
+  torno a un 40&nbsp;% menos.</p>
 </div>
 
 <h3 style="margin-top:36px">Dónde pesa el cupón WELCOME10</h3>
-<p>El cupón descuenta un 10&nbsp;% sobre tarifa. Cuenta como venta ordinaria, no como precio especial:
-son cosas distintas, un cupón de bienvenida y una liquidación al 40&nbsp;%. <strong>El descuento ya está
-restado de la facturación</strong>, así que el margen lo absorbe solo una vez. La última columna es lo
-que el cupón deja de ingresar.</p>
+<p>El cupón descuenta un 10&nbsp;% sobre tarifa y cuenta como venta ordinaria, no como liquidación al
+40&nbsp;%. <strong>El descuento ya está restado de la facturación</strong>, así que el margen lo absorbe
+una sola vez. La última columna es lo que el cupón deja de ingresar.</p>
 <div class="card" style="margin-top:16px">{t_promo}
-<p class="nota">Ojo con las dos bases: <strong>el porcentaje es sobre facturación, no sobre unidades</strong>,
-y no coinciden porque el cupón no se reparte igual entre producto caro y barato. En Alemania son 9 de 53
-unidades (el {pct(merc[merc.mercado == "DE"].iloc[0]["pct_promocion_uds"])}) pero el
+<p class="nota"><strong>El porcentaje es sobre facturación, no sobre unidades</strong>, y no coinciden
+porque el cupón no se reparte igual entre producto caro y barato. En Alemania son 9 de 53 unidades
+(el {pct(merc[merc.mercado == "DE"].iloc[0]["pct_promocion_uds"])}) y el
 {pct(merc[merc.mercado == "DE"].iloc[0]["pct_promocion"])} de la facturación.<br>
-<strong>Descuento dado</strong> no lo calculamos nosotros: es la columna <code>Descuento (€)</code> del
-Excel, en euros, sumada sobre esas líneas. Se <strong>resta</strong> del importe de tarifa, nunca se suma
-ni se recalcula. Resulta ser el 10&nbsp;% del bruto, pero eso es un hecho del dato, no una fórmula nuestra.
-Esta semana el cupón deja de ingresar
+<strong>Descuento dado</strong> es la columna <code>Descuento (€)</code> del Excel sumada sobre esas
+líneas, y se <strong>resta</strong> del importe de tarifa. Esta semana el cupón deja de ingresar
 <strong>{eur(merc["coste_cupon"].sum(), 2)}</strong>, y el margen de sus líneas es del {pct(margen_promo)}
 frente al {pct(margen_sin)} de las que no lo llevan.</p></div>"""
 
     return seccion(
         "Reto 1 · Pregunta 2", "Cómo se reparte, y qué se vendió rebajado", "reparto",
-        "<strong>Esta semana no se ha vendido ni una unidad a precio especial</strong>, pero no es una "
-        "anomalía: el precio especial en EME es estacional, no continuo. Lo que sí está activo es el "
-        "cupón <strong>WELCOME10</strong>.",
+        "<strong>Esta semana no se ha vendido ni una unidad a precio especial</strong>. En EME el precio "
+        "especial es estacional y se concentra en campañas. Lo que sí está activo es el cupón "
+        "<strong>WELCOME10</strong>.",
         cuerpo,
     )
 
@@ -844,28 +841,25 @@ def _seccion_modelos(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 <div class="card">
   {leyenda(("Resto del catálogo", C["acento"]), ("Venden poco y rotan poco", C["negativo"]))}
   {g_mapa}
-  <p class="nota"><strong>Un punto = un modelo.</strong> Cuanto más a la derecha, más vendió esta semana;
-  cuanto más arriba, mayor parte de lo que se compró ya se ha colocado. El tamaño del punto es el stock
-  que queda, así que los problemas pesan en pantalla.<br>
-  <strong>En rojo</strong>, los modelos que cumplen las dos cosas malas a la vez: vendieron
-  {num(mediana)} unidades o menos esta semana —la mitad del catálogo vende más— <em>y</em> están por
-  debajo del {num(umbral_st)}&nbsp;% de sell-through. Son <strong>{num(len(problema))} modelos</strong>
-  con <strong>{num(problema["stock_actual"].sum())} unidades</strong> en el almacén.
+  <p class="nota"><strong>Un punto = un modelo.</strong> A la derecha, lo vendido esta semana. Arriba, la
+  parte de lo comprado que ya se ha colocado. El tamaño del punto es el stock que queda.<br>
+  <strong>En rojo</strong>, los que vendieron {num(mediana)} unidades o menos esta semana <em>y</em> están
+  por debajo del {num(umbral_st)}&nbsp;% de sell-through: <strong>{num(len(problema))} modelos</strong> con
+  <strong>{num(problema["stock_actual"].sum())} unidades</strong> en el almacén.
   <strong>En azul</strong>, los {num(len(mapa) - len(problema))} restantes.</p></div>
 
 <div class="card" style="margin-top:20px"><h3>Los 10 que más venden</h3>
-<p class="nota" style="margin-bottom:14px">Unidades de la semana analizada. Al lado, la semana anterior y
-lo que lleva vendido el modelo en 2025, para saber si el dato de la semana es su ritmo normal.
-El sell-through es de toda la vida del modelo.</p>
+<p class="nota" style="margin-bottom:14px">Unidades de la semana analizada, con la semana anterior y lo
+vendido en 2025 al lado para situar el ritmo. El sell-through es de toda la vida del modelo.</p>
 {tabla_html(top, cols)}</div>
 
 <div class="card" style="margin-top:20px"><h3>Los 10 que menos venden</h3>
-<p class="nota" style="margin-bottom:14px">Hay muchos modelos empatados a una unidad, así que entre ellos
-ordena lo vendido en el año: peor está el que además lleva menos vendido.</p>
+<p class="nota" style="margin-bottom:14px">Muchos modelos empatan a una unidad, así que entre ellos
+ordena lo vendido en el año.</p>
 {tabla_html(bottom, cols)}</div>
 
 <div class="card" style="margin-top:20px"><h3>Con stock y sin una sola venta en {semanas_sin} semanas</h3>
-<p class="nota" style="margin-bottom:14px">No aparecen en ningún ranking porque no vendieron nada. No vender
+<p class="nota" style="margin-bottom:14px">No aparecen en los rankings porque no vendieron nada. No vender
 una semana es normal; no vender en {semanas_sin}, con stock en el almacén, no.</p>
 {t_sin}</div>
 
@@ -932,36 +926,32 @@ def _seccion_stock(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 <div class="card" style="margin-top:28px">
   {leyenda(("Le falta una talla y le sobra otra", C["negativo"]), ("Resto del catálogo", C["acento"]))}
   {g_comp}
-  <p class="nota">Los {num(cg["modelos_totales"])} modelos repartidos por su estado de stock. Rotura y
-  exceso no son opuestos: <strong>{num(comp.iloc[0]["modelos"])} modelos están en los dos a la vez</strong>
-  —una talla a cero y otra con stock para meses— y acumulan
-  {num(comp.iloc[0]["stock_uds"])} unidades. Es la prueba de que el problema no es cuánto stock hay,
-  sino cómo está repartido.</p>
+  <p class="nota">Los {num(cg["modelos_totales"])} modelos repartidos por su estado de stock.
+  <strong>{num(comp.iloc[0]["modelos"])} están en rotura y en exceso a la vez</strong>, con una talla a cero
+  y otra con stock para meses, y acumulan {num(comp.iloc[0]["stock_uds"])} unidades. El problema está en
+  cómo se reparte el stock.</p>
 </div>
 
 <h3 style="margin-top:36px">Modelos en rotura en 4 semanas</h3>
-<p>Un modelo entra aquí si le falta <strong>alguna talla</strong>, no si le falta stock en conjunto.
-No se puede vender una M con el stock de XL.</p>
+<p>Un modelo entra aquí si le falta <strong>alguna talla</strong>. No se puede vender una M con el
+stock de XL.</p>
 <div class="card" style="margin-top:16px">{t_rot}
 <p class="nota"><strong>Disponible</strong> = lo que hay en almacén de esas tallas más las compras que
 llegan dentro de las 4 semanas. <strong>Faltan</strong> = demanda − disponible. La última columna es el
-stock del modelo entero: el número que haría pensar que está sano.
-Las 12 primeras de {len(rot)}.</p></div>
+stock del modelo entero. Las 12 primeras de {len(rot)}.</p></div>
 
 <h3 style="margin-top:36px">Modelos con exceso de stock</h3>
 <p>Un modelo entra aquí si su cobertura supera las <strong>{umbral} semanas</strong>, el doble de la
-cobertura objetivo. El umbral es decisión nuestra, pero da casi igual dónde se ponga: entre 8 y 16 semanas
-salen los mismos {n_exceso} modelos, y hay que irse a un año entero para bajar de la mitad del catálogo
-(<em>Asunciones</em> lleva la tabla completa).</p>
-<p>Por eso la lista va ordenada por <strong>capital inmovilizado</strong> y no por cobertura: la cobertura
-se dispara en productos baratos que casi no rotan, y lo que decide dirección es cuánto dinero hay parado.</p>
+objetivo. Da casi igual dónde se ponga el umbral. Entre 8 y 16 semanas salen los mismos {n_exceso}
+modelos (<em>Asunciones</em> lleva la tabla).</p>
+<p>La lista va ordenada por <strong>capital inmovilizado</strong>. La cobertura se dispara en productos
+baratos que casi no rotan, y lo que decide dirección es cuánto dinero hay parado.</p>
 <div class="card" style="margin-top:16px">{t_exc}
-<p class="nota">Las 12 primeras de {len(exc)}. Ojo, son dos parámetros distintos: las {umbral} semanas
-deciden <em>quién entra</em> en la lista, y las {objetivo} de cobertura objetivo deciden <em>cuánto sobra</em>.
+<p class="nota">Las 12 primeras de {len(exc)}. Son dos parámetros distintos: las {umbral} semanas deciden
+<em>quién entra</em> en la lista y las {objetivo} de cobertura objetivo, <em>cuánto sobra</em>.
 <strong>Unidades sobrantes</strong> = stock − demanda semanal × {objetivo} semanas.
-<strong>Capital parado</strong> = esas unidades <strong>a coste</strong>, no a PVP. Es el dinero que ya se
-pagó al proveedor y sigue en la estantería; valorado a precio de venta serían {eur(valor_pvp)}, pero ese
-dinero no se ha gastado. El umbral de exceso está en las <em>Asunciones</em>.</p></div>"""
+<strong>Capital parado</strong> = esas unidades <strong>a coste</strong>. A precio de venta serían
+{eur(valor_pvp)}, pero ese dinero no se ha gastado.</p></div>"""
 
     return seccion("Reto 1 · Pregunta 4", "Qué va a romper y qué sobra", "stock", "", cuerpo)
 
@@ -988,27 +978,27 @@ def _seccion_insights(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
 
     cuerpo = f"""
 <h3>1 · El almacén tiene las tallas equivocadas</h3>
-<p>Explica la paradoja de la pregunta 4: hay stock de sobra y aun así {n_rotura} modelos van a romper.
-Faltan <strong>{num(abs(talla_m["desvio_uds"]))} unidades de la M</strong>, la talla que más se vende, y
-sobran <strong>{num(sobran)}</strong> repartidas sobre todo en XL y XXL.</p>
+<p>Hay stock de sobra y aun así {n_rotura} modelos van a romper. Faltan
+<strong>{num(abs(talla_m["desvio_uds"]))} unidades de la M</strong>, la talla que más se vende, y sobran
+<strong>{num(sobran)}</strong> en XL y XXL.</p>
 <div class="card" style="margin-top:16px">{grafico(grafico_curva_tallas(tallas))}
-<p class="nota">Diferencia entre el stock de cada talla y el que le correspondería si siguiera el reparto
-de la demanda de las últimas 12 semanas. Se arregla en el Reto 2 cambiando la curva de tallas del pedido,
-sin gastar un euro más.</p></div>
+<p class="nota">Diferencia entre el stock de cada talla y el que le tocaría con el reparto de la demanda
+de las últimas 12 semanas. Se arregla en el Reto 2 cambiando la curva del pedido.</p></div>
 
-<h3 style="margin-top:44px">2 · La fecha de entrega del proveedor no es una previsión</h3>
-<p>No hay un proveedor malo: <strong>los cuatro llegan tarde entre el {num(tarde[0], 0)}&nbsp;% y el
-{num(tarde[1], 0)}&nbsp;% de las veces</strong>, con un retraso medio casi idéntico de
-{num(retraso, 1)} días. Cuando todos fallan igual, el problema es la fecha, no ellos.</p>
+<h3 style="margin-top:44px">2 · Los cuatro proveedores llegan tarde por igual</h3>
+<p><strong>Llegan tarde entre el {num(tarde[0], 0)}&nbsp;% y el {num(tarde[1], 0)}&nbsp;% de las
+veces</strong>, con un retraso medio casi idéntico de {num(retraso, 1)} días. Cuando todos fallan igual,
+el problema está en la fecha.</p>
 <div class="card" style="margin-top:16px">{grafico(grafico_proveedores(prov))}
-<p class="nota">Además hay <strong>{vencidas} pedidos vencidos sin confirmar</strong>: su fecha estimada
-pasó y no consta que hayan llegado. Acción inmediata y gratis: sumar una semana a toda fecha estimada.</p></div>
+<p class="nota">Además hay <strong>{vencidas} pedidos vencidos sin confirmar</strong>, con la fecha
+estimada pasada y ninguna constancia de que hayan llegado. Sumar una semana a toda fecha estimada sale
+gratis.</p></div>
 
 <h3 style="margin-top:44px">3 · El drop {d["drop"] if d is not None else "—"} se ha quedado atascado</h3>
-<p>Los drops siguen una curva coherente: cuanto más viejo, más vendido. Uno se sale.
-<strong>{d["drop"] if d is not None else "—"}</strong> lleva {int(d["semanas_vida"]) if d is not None else 0}
-semanas en el mercado y vende peor que drops más nuevos. Son
-<strong>{eur(d["capital"]) if d is not None else "—"}</strong> parados en producto que no arranca.</p>
+<p>Cuanto más viejo es un drop, más vendido está. <strong>{d["drop"] if d is not None else "—"}</strong>
+se sale de la curva: lleva {int(d["semanas_vida"]) if d is not None else 0} semanas en el mercado y vende
+peor que drops más nuevos. Son <strong>{eur(d["capital"]) if d is not None else "—"}</strong> parados en
+producto que no arranca.</p>
 <div class="card" style="margin-top:16px">{grafico(grafico_drops(drops))}
 <p class="nota">Sell-through de cada drop, ordenados del más antiguo al más reciente. Es el candidato
 natural para Black&nbsp;Friday, a dos o tres semanas.</p></div>"""
@@ -1079,8 +1069,8 @@ def _seccion_glosario(catalogo: pd.Series) -> Dict[str, str]:
         ),
         termino(
             "Exceso de stock y capital inmovilizado",
-            "Stock muy por encima de lo que se va a vender. Se mide con la cobertura pero se ordena por dinero: "
-            "la cobertura se dispara en productos baratos que casi no rotan, y eso no es lo que decide dirección.",
+            "Stock muy por encima de lo que se va a vender. Se mide con la cobertura y se ordena por dinero, "
+            "porque la cobertura se dispara en productos baratos que casi no rotan.",
             "unidades sobrantes  =  stock − demanda semanal × 8 semanas\ncapital parado      =  unidades sobrantes × coste unitario",
             "LOGIC JOGGER BLACK: 293 uds a 4,8/semana → sobran 255 uds = 6.811 € parados.",
         ),
@@ -1161,9 +1151,8 @@ def _seccion_asunciones(m: Dict[str, pd.DataFrame]) -> Dict[str, str]:
   </table></div></div>
 
 <h3 style="margin-top:44px">¿Cuánto depende el diagnóstico del umbral de exceso?</h3>
-<p>Las 16 semanas las hemos elegido nosotros, así que conviene enseñar cuánto cambia el resultado si se
-mueven: <strong>casi nada</strong>. Entre 8 y 16 semanas salen los mismos modelos, y hay que irse a un año
-entero de cobertura para bajar de la mitad del catálogo. El umbral no es el problema: el sobrestock sí.</p>
+<p>Las 16 semanas las elegimos nosotros. Mover el umbral cambia poco: entre 8 y 16 semanas salen los
+mismos modelos, y hay que irse a un año entero de cobertura para bajar de la mitad del catálogo.</p>
 <div class="card" style="margin-top:16px">{sens}</div>""")
 
 
@@ -1182,21 +1171,20 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "Los pedidos con la etiqueta <code>influencers</code> son regalos, no ventas. Descuentan el 100 % "
             "del importe: en 560 de 561 líneas el descuento es exactamente igual al importe bruto.",
             ejemplos["etiquetas"],
-            "Regla del enunciado. Se excluyen de <strong>todo</strong> análisis de venta: unidades, facturación, "
-            "margen, sell-through y demanda prevista. Se conservan en una tabla aparte porque sí consumen stock.",
-            "559 líneas fuera de la venta. En la tabla se ven también las dos etiquetas que el enunciado no menciona: "
-            "<code>WELCOME10</code> y las variantes <code>SPECIAL XX</code>.",
+            "Regla del enunciado. Fuera de todo análisis de venta. Se conservan en una tabla aparte porque sí "
+            "consumen stock.",
+            "559 líneas fuera de la venta. En la tabla se ven también <code>WELCOME10</code> y las variantes "
+            "<code>SPECIAL XX</code>, que el enunciado no menciona.",
         ),
         bloque_decision_plegable(
             "WELCOME10 cuenta como venta a precio completo, no como precio especial",
             "Aparece una etiqueta que el enunciado no menciona, en 999 líneas (5,5 % del total). Descuenta "
             "exactamente un 10 %, frente al ~40 % de <code>special</code> y el 100 % de <code>influencers</code>.",
             "",
-            "Es una venta a tarifa con un cupón promocional encima, no una liquidación. Entra en precio completo "
-            "con un flag propio. <strong>Alternativa descartada:</strong> meterla en <code>special</code>, que "
-            "mezclaría un 10 % con un 40 % y distorsionaría el margen del canal de precio completo.",
-            "Cambia el reparto de la pregunta 2. Sin esta decisión, el «0 % a precio especial» de la semana sería "
-            "un 8,8 % que no significaría lo mismo.",
+            "Es una venta a tarifa con un cupón encima. Entra en precio completo con un flag propio. "
+            "<strong>Alternativa descartada:</strong> meterla en <code>special</code>, que mezclaría un 10 % "
+            "con un 40 %.",
+            "Cambia el reparto de la pregunta 2. Sin esto, el «0 % a precio especial» de la semana sería un 8,8 %.",
         ),
         bloque_decision_plegable(
             "Las cuatro variantes de SPECIAL se unificaron en un solo flag",
@@ -1214,9 +1202,8 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "y una unidad cada una.",
             ejemplos["duplicados"],
             "Se elimina una de cada par. Un ERP agruparía dos unidades del mismo SKU en una línea con "
-            "<code>unidades = 2</code>; dos líneas idénticas apuntan a un error de carga, y el enunciado avisa de "
-            "que hay errores introducidos a propósito. <strong>Alternativa descartada:</strong> conservarlas, por si "
-            "el sistema creara una línea por unidad.",
+            "<code>unidades = 2</code>, así que dos líneas idénticas apuntan a un error de carga. "
+            "<strong>Alternativa descartada:</strong> conservarlas, por si el sistema creara una línea por unidad.",
             "−25 líneas sobre 18.292 (0,1 %). De ellas, 2 eran regalos y 5 de precio especial.",
         ),
         bloque_decision_plegable(
@@ -1225,9 +1212,9 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "el importe neto restara de más: es el origen de las diez filas marcadas como «descuento mayor que el "
             "importe bruto» en el perfilado.",
             ejemplos["devoluciones"],
-            "Se mantienen, marcadas como devolución, porque restan de la venta neta igual que haría un ERP. "
-            "Además se revierte el signo del descuento para que acompañe al de las unidades. "
-            "<strong>Alternativa descartada:</strong> excluirlas, que inventaría diez ventas que se devolvieron.",
+            "Se mantienen marcadas como devolución, porque restan de la venta neta igual que haría un ERP, y se "
+            "revierte el signo del descuento. <strong>Alternativa descartada:</strong> excluirlas, que inventaría "
+            "diez ventas que se devolvieron.",
             "Nueve devoluciones tras excluir los regalos. El ajuste del descuento afecta a <strong>una sola línea</strong>: "
             "una devolución de precio especial con 11,20 € de descuento.",
         ),
@@ -1236,8 +1223,7 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "Quince líneas de venta traen el SKU en minúsculas (<code>eme010-bro-m</code> en lugar de "
             "<code>EME010-BRO-M</code>). Al cruzar con el catálogo aparecían como SKUs inexistentes.",
             ejemplos["sku_minusculas"],
-            "Todos los SKUs pasan a mayúsculas sin espacios antes de cruzar nada. No hay alternativa razonable: "
-            "son los mismos productos.",
+            "Todos los SKUs pasan a mayúsculas sin espacios antes de cruzar nada. Son los mismos productos.",
             "Sin esta normalización se perderían <strong>quince ventas en silencio</strong>, sin ningún aviso.",
         ),
         bloque_decision_plegable(
@@ -1246,8 +1232,7 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "Otras 14 líneas no traen mercado.",
             ejemplos["mercados"],
             "Las 26 variantes pasan a <code>ES</code>. Los 14 nulos pasan a <code>DESCONOCIDO</code> y "
-            "<strong>no se imputan</strong>: inventar un mercado para que cuadre un gráfico es peor que enseñar "
-            "una categoría «desconocido».",
+            "<strong>no se imputan</strong>, porque no hay forma de saber de dónde venían.",
             "Los 14 nulos son el 0,08 % de las líneas y ninguno cae en la semana analizada, así que no aparecen "
             "en el desglose por mercado de este informe.",
         ),
@@ -1256,11 +1241,9 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "Tiene 14 unidades de stock en el almacén, pero no existe en el catálogo de producto y no se ha "
             "vendido nunca.",
             ejemplos["sku_fantasma"],
-            "Se excluye del análisis: sin producto, color ni talla no se puede agregar por modelo ni calcular "
-            "margen. Pero se reporta con nombre y apellidos, porque catorce unidades en almacén que el catálogo "
-            "no conoce son un problema real de inventario.",
-            "14 unidades fuera del análisis de stock. Es un aviso para almacén, no un error que podamos corregir "
-            "desde los datos.",
+            "Sin producto, color ni talla no se puede agregar por modelo ni calcular margen, así que queda fuera. "
+            "Se reporta por su nombre: catorce unidades que el catálogo no conoce son un problema de inventario.",
+            "14 unidades fuera del análisis de stock. Es un aviso para almacén.",
         ),
         bloque_decision_plegable(
             "El identificador de modelo se construye con la referencia del SKU, no con el nombre",
@@ -1272,18 +1255,17 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
             "es el producto de verdad. Para mostrar se usa el nombre comercial y, si dos lo comparten, se "
             "desambigua con el drop. <strong>Alternativa descartada:</strong> agrupar por nombre, que creaba "
             "modelos inexistentes con dos secciones y dos precios.",
-            "De 119 a <strong>123 modelos</strong>. Sin esta corrección, cuatro modelos aparecerían fusionados en "
-            "los rankings y en las alertas de stock, con un margen y un sell-through que no son de ninguno de los dos.",
+            "De 119 a <strong>123 modelos</strong>. Sin esto, cuatro aparecerían fusionados en los rankings con un "
+            "margen y un sell-through que no son de ninguno de los dos.",
         ),
         bloque_decision_plegable(
             "La rotura se calcula por talla, no sumando el modelo entero",
             "Agregando las tallas antes de comparar demanda con stock, la rotura desaparecía: ningún modelo rompía "
             "en conjunto, aunque 43 SKUs sí lo hacían.",
             "",
-            "Se compara talla a talla y después se cuenta cuántas tallas del modelo están afectadas. Sumar tallas "
-            "asume que son intercambiables, y no lo son: no se puede vender una M a quien necesita una M con el "
-            "stock de XL.",
-            "De <strong>0 modelos en rotura a 37 modelos y 43 tallas</strong>. Era el error más grave: el informe "
+            "Se compara talla a talla y después se cuenta cuántas tallas del modelo están afectadas. Sumarlas asume "
+            "que son intercambiables.",
+            "De <strong>0 modelos en rotura a 37 modelos y 43 tallas</strong>. Con la versión anterior el informe "
             "habría dicho que todo estaba bien.",
         ),
         bloque_decision_plegable(
@@ -1332,6 +1314,404 @@ def pagina_decisiones(ejemplos: Dict[str, str], resumen: pd.DataFrame) -> str:
 # páginas. Los retos 2 y 3 ya figuran aquí para que la estructura se vea
 # completa desde el principio; se rellenan cuando estén.
 Pagina = tuple  # (id, etiqueta, badge)
+# ---------------------------------------------------------------------------
+# Reto 3 · Hoja de ruta de IA
+# ---------------------------------------------------------------------------
+# El contenido vive en `src/roadmap.py`; aquí solo se dibuja. Son cinco
+# páginas, una por punto del enunciado, pensadas para explicarse en metro y
+# medio cada una: la conclusión de arriba es literalmente la frase que se dice
+# en voz alta, y el detalle queda plegado para las preguntas.
+
+def grafico_r3_dolor(c: Dict[str, float]) -> go.Figure:
+    """Lo que se vende en un año contra lo que duerme en el almacén."""
+    cl = design.TOKENS["claro"]
+    fig = _barras_horizontales(
+        ["Vendido en 12 meses", "En el almacén hoy"],
+        [c["unidades_12m"], c["stock_uds"]],
+        [f'{num(c["unidades_12m"])} uds', f'{num(c["stock_uds"])} uds'],
+        colores=[cl["referencia"], cl["acento"]],
+        altura=150,
+    )
+    return fig
+
+
+def grafico_r3_matriz() -> go.Figure:
+    """Impacto × esfuerzo. El tamaño de cada burbuja son las horas liberadas."""
+    cl = design.TOKENS["claro"]
+    ini = roadmap.INICIATIVAS
+    x = [i["esfuerzo"] for i in ini]
+    y = [i["euros_rec"] + i["euros_unavez"] for i in ini]
+    horas = [i["horas"] for i in ini]
+    tam = [16 + (h / 312) * 22 for h in horas]
+    simbolo = ["diamond" if "B" in i["tipo"] else "circle" for i in ini]
+
+    fig = go.Figure()
+    # Las dos líneas que parten los cuadrantes. El corte de impacto en 7.500 €
+    # y el de esfuerzo en dos semanas y media son convenciones, no verdades:
+    # sirven para leer el gráfico, no para decidir por sí solas.
+    fig.add_vline(x=2.5, line_width=1, line_dash="dot", line_color=cl["linea"])
+    fig.add_hline(y=7500, line_width=1, line_dash="dot", line_color=cl["linea"])
+    fig.add_trace(go.Scatter(
+        x=x, y=y, mode="markers+text",
+        marker=dict(size=tam, color=cl["acento"], opacity=0.85, symbol=simbolo,
+                    line=dict(width=0)),
+        text=[str(i["n"]) for i in ini],
+        textposition="middle center",
+        textfont=dict(size=11, color="#ffffff", family=design.TIPOGRAFIA),
+        customdata=[[i["nombre"], i["dept"], i["horas"], i["esfuerzo"]] for i in ini],
+        hovertemplate=("<b>%{customdata[0]}</b><br>%{customdata[1]}<br>"
+                       "%{y:,.0f} € el primer año · %{customdata[2]} h/año<br>"
+                       "%{customdata[3]} semanas hasta producción<extra></extra>"),
+    ))
+    for xq, yq, texto in [
+        (1.05, 34000, "Hazlo ya"), (4.6, 34000, "Proyecto con dueño"),
+        (1.05, 600, "Rápidas"), (4.6, 600, "Justifícala por otra cosa"),
+    ]:
+        fig.add_annotation(x=xq, y=yq, text=texto, showarrow=False,
+                           font=dict(size=11, color=cl["tinta_3"]),
+                           xanchor="left" if xq < 2.5 else "right")
+    fig = design.plantilla_grafico(fig, altura=420, margen_izq=60)
+    fig.update_xaxes(title=None, range=[0.3, 5.7], dtick=1,
+                     ticksuffix=" sem", showgrid=False)
+    fig.update_yaxes(title=None, range=[-2500, 38000], tickprefix="",
+                     ticksuffix=" €", tickformat=",.0f")
+    return fig
+
+
+def grafico_r3_calendario() -> go.Figure:
+    """Las doce iniciativas repartidas en seis meses."""
+    cl = design.TOKENS["claro"]
+    ini = sorted(roadmap.INICIATIVAS, key=lambda i: (i["mes_ini"], i["n"]))
+    etiquetas = [f'{i["n"]} · {i["nombre"]}' for i in ini]
+    base = [i["mes_ini"] - 1 for i in ini]
+    largo = [i["mes_fin"] - i["mes_ini"] + 1 for i in ini]
+    # Las victorias rápidas se pintan con el acento; el resto en gris, para que
+    # los primeros 60 días salten a la vista sin leer una sola palabra.
+    colores = [cl["acento"] if i["quick"] else cl["referencia"] for i in ini]
+
+    fig = go.Figure(go.Bar(
+        x=largo, y=etiquetas, base=base, orientation="h",
+        marker=dict(color=colores), width=0.62,
+        customdata=[[i["dept"], roadmap.CALENDARIO_FOCO[i["mes_ini"]]] for i in ini],
+        hovertemplate="<b>%{y}</b><br>%{customdata[0]}<br>%{customdata[1]}<extra></extra>",
+    ))
+    fig.add_vline(x=2, line_width=1, line_dash="dot", line_color=cl["acento"])
+    fig.add_annotation(x=2, y=1.04, yref="paper", text="60 días", showarrow=False,
+                       xanchor="left", font=dict(size=11, color=cl["acento"]))
+    fig = design.plantilla_grafico(fig, altura=430, margen_izq=240)
+    fig.update_xaxes(range=[0, 6], tickvals=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5],
+                     ticktext=[f"Mes {n}" for n in range(1, 7)], showgrid=True,
+                     gridcolor=cl["linea"])
+    fig.update_yaxes(autorange="reversed", showgrid=False,
+                     tickfont=dict(size=12, color=cl["tinta_2"]))
+    return fig
+
+
+def _ficha_iniciativa(i: Dict) -> str:
+    """Una iniciativa plegada: cerrada se ve el titular, abierta el porqué."""
+    peldano = dict((n, t) for n, t, _ in roadmap.ESCALERA)[str(i["peldano"])]
+    estado = " · <strong>ya construida</strong>" if i.get("hecho") else ""
+    return f"""
+<details>
+  <summary>{i["n"]} · {i["nombre"]} <span class="nota" style="margin:0;border:0;padding:0">
+    — {i["dept"]}{estado}</span></summary>
+  <div class="detalle"><dl>
+    <dt>Qué pasa hoy</dt><dd>{i["problema"]}</dd>
+    <dt>Qué hace</dt><dd>{i["que_hace"]}</dd>
+    <dt>De dónde sale el número</dt><dd>{i["formula"]}</dd>
+    <dt>Error que evita</dt><dd>{i["error"]}</dd>
+    <dt>Peldaño {i["peldano"]}</dt><dd>{peldano}. Se mide con «{i["kpi"]}»,
+      de {i["base"]} a {i["objetivo"]}.</dd>
+  </dl></div>
+</details>"""
+
+
+def _seccion_r3_dolor(c: Dict[str, float]) -> Dict[str, str]:
+    """Antes de proponer nada: dónde está el dinero de esta marca."""
+    tarjetas = [
+        kpi("Margen en 12 meses", c["margen_12m"], "€", [],
+            pie=f'Sobre {eur(c["facturacion_12m"])} de facturación neta'),
+        kpi("Capital parado en exceso", c["exceso_coste"], "€", [],
+            pie=f'{int(c["modelos_exceso"])} de {int(c["modelos_total"])} modelos por encima del umbral'),
+        kpi("Entregas que llegan tarde", c["pct_tarde"], "%", [],
+            pie=f'{int(c["entregas_tarde"])} de {int(c["entregas"])} entregas, {num(c["retraso_medio"], 1)} días de media'),
+        kpi("Facturación fuera de España", c["pct_fuera_es"], "%", [],
+            pie=f'Repartida en {int(c["mercados"]) - 1} países y seis idiomas'),
+    ]
+
+    pesos = pd.DataFrame([
+        {"dept": d["nombre"], "peso": d["peso"],
+         "n": sum(1 for i in roadmap.INICIATIVAS if i["dept"] == d["nombre"]),
+         "por": por}
+        for d, por in zip(roadmap.DEPARTAMENTOS, [
+            f'{eur(c["exceso_coste"])} parados y {num(c["pct_tarde"], 0)}&nbsp;% de entregas tarde: aquí está el dinero',
+            "Decide qué se compra y qué se liquida; nadie mira la cobertura por modelo",
+            f'{num(c["pedidos_semana"], 0)} pedidos a la semana en seis idiomas, con equipo mínimo',
+            f'{num(c["modelos_por_drop"], 0)} modelos nuevos por drop × siete mercados de contenido',
+            "Palanca para dar salida al exceso sin tocar el precio de lo que vende",
+            "Dirección decide cada lunes, y hoy pregunta lo que le da tiempo a cruzar",
+            "Menos dato y más mundo físico",
+        ])
+    ])
+
+    cuerpo = f"""
+<div class="grid g4" style="margin-bottom:28px">{"".join(tarjetas)}</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Hay más ropa en el almacén que la vendida en todo el año</h3>
+  {grafico(grafico_r3_dolor(c))}
+  <p class="nota">Cobertura global de <strong>{num(c["cobertura_semanas"], 1)} semanas</strong> contra las 8 de
+  objetivo, y la mediana de los modelos con exceso llega a {num(c["cobertura_mediana"], 0)}. Aun así hay
+  <strong>{int(c["modelos_rotura"])} modelos que rompen</strong> en cuatro semanas.</p>
+</div>
+
+<h3 style="margin-top:44px">El reparto de las doce</h3>
+<p>Compras y Planificación se llevan cinco, que es donde están los {eur(c["exceso_coste"])} parados.
+Logística, una.</p>
+{tabla_html(pesos, [
+    ("dept", "Departamento", "texto"),
+    ("peso", "Peso", "texto"),
+    ("n", "Iniciativas", "num"),
+    ("por", "Por qué", "crudo"),
+])}
+<p class="nota">Salen de las mismas tablas que el informe del Reto 1.</p>"""
+
+    return seccion(
+        "Reto 3 · Hoja de ruta", "Dónde duele antes de proponer nada", "r3_dolor",
+        f'Hay <strong>{eur(c["exceso_coste"])} parados</strong> en el almacén y '
+        f'<strong>{int(c["conc_modelos"])} modelos</strong> hacen la mitad de la facturación. '
+        "De ahí sale el reparto de los seis meses.",
+        cuerpo,
+    )
+
+
+def _seccion_r3_metodo() -> Dict[str, str]:
+    """Punto 1 del enunciado: cómo se desgrana el trabajo de la gente."""
+    pasos = "".join(
+        f'<div class="card"><div class="dato">{n}</div>'
+        f'<div class="dato-lbl" style="font-size:15px;color:var(--tinta);margin-top:10px">'
+        f'<strong>{titulo}</strong></div>'
+        f'<p style="font-size:13px;margin:8px 0 0">{que}</p>'
+        f'<p class="nota">{como}</p></div>'
+        for n, (titulo, que, como) in enumerate(roadmap.METODO, start=1)
+    )
+
+    verbos = tabla_html(pd.DataFrame([
+        {"v": f"<strong>{v}</strong>", "q": q, "t": t} for v, q, t in roadmap.VERBOS
+    ]), [("v", "Verbo", "crudo"), ("q", "Qué es", "texto"), ("t", "Qué lo automatiza", "texto")])
+
+    comunes = "".join(
+        f'<li><strong>{p}</strong><br><span class="nota" style="margin:0;border:0;padding:0">{busco}</span></li>'
+        for p, busco in roadmap.PREGUNTAS_COMUNES
+    )
+
+    deptos = tabla_html(pd.DataFrame([
+        {"d": f'<strong>{d["nombre"]}</strong>',
+         "p": "<br>".join(f"· {q}" for q in d["preguntas"]),
+         "h": d["hipotesis"]}
+        for d in roadmap.DEPARTAMENTOS
+    ]), [("d", "Departamento", "crudo"), ("p", "Las dos preguntas propias", "crudo"),
+         ("h", "Hipótesis que pongo a prueba", "texto")])
+
+    return seccion(
+        "Reto 3 · Hoja de ruta", "Cómo desgrano el trabajo de cada equipo", "r3_metodo",
+        "Pido <strong>los tres últimos ficheros que hicieron</strong> y parto el trabajo en tareas. "
+        "Cada tarea cae en uno de cuatro verbos, y el verbo decide la tecnología.",
+        f"""
+<div class="grid g4">{pasos}</div>
+
+<h3 style="margin-top:44px">El verbo de la tarea decide la tecnología</h3>
+<p>De las doce iniciativas, <strong>{roadmap.totales()["con_ia_dentro"]} llevan IA dentro del
+proceso</strong>. El resto es código determinista, escrito con un agente. Por eso caben doce en seis
+meses.</p>
+{verbos}
+
+<h3 style="margin-top:44px">Seis preguntas para todos</h3>
+<p>Una por casilla de la ficha. Lo propio de cada equipo son las dos de la tabla siguiente.</p>
+<div class="card"><ol style="margin:0;padding-left:20px;line-height:1.6">{comunes}</ol>
+<p class="nota">La sexta filtra más que las otras cinco.</p></div>
+
+<h3 style="margin-top:44px">Las preguntas propias de cada departamento</h3>
+<p>Cada bloque lleva detrás una sospecha sacada de los datos. Si la hipótesis se cae, se cae su iniciativa.</p>
+{deptos}""",
+    )
+
+
+def _seccion_r3_iniciativas() -> Dict[str, str]:
+    """Punto 2 del enunciado: las doce, con su impacto y su esfuerzo."""
+    t = roadmap.totales()
+    cabecera = "".join([
+        kpi("Horas de persona al año", t["horas"], "uds", [],
+            pie="Trabajo que hoy se hace a mano y deja de hacerse"),
+        kpi("Ahorro recurrente", t["euros_rec"], "€", [],
+            pie="Al año, cuando las doce estén en marcha"),
+        kpi("Capital liberado", t["euros_unavez"], "€", [],
+            pie="Una sola vez, al dar salida al exceso. No es recurrente y no se suma"),
+        kpi("Llevan IA dentro", t["con_ia_dentro"], "uds", [],
+            pie="De doce. Las otras siete son código escrito con un agente"),
+    ])
+
+    filas = pd.DataFrame([{
+        "n": i["n"],
+        "dept": i["dept"],
+        "nombre": (f'<strong>{i["nombre"]}</strong>'
+                   + (' <span class="tag tag-dato">hecho</span>' if i.get("hecho") else "")),
+        "tipo": i["tipo"],
+        "horas": i["horas"] or None,
+        # Las dos iniciativas sin euros propios se marcan como habilitadoras en
+        # vez de enseñar un cero, que se leería como «no sirve».
+        "euros": (eur(i["euros_rec"] + i["euros_unavez"])
+                  if i["euros_rec"] + i["euros_unavez"] else "habilitadora"),
+        "esf": f'{i["esfuerzo"]} sem',
+    } for i in roadmap.INICIATIVAS])
+    tabla = tabla_html(filas, [
+        ("n", "#", "num"), ("dept", "Departamento", "texto"),
+        ("nombre", "Iniciativa", "crudo"), ("tipo", "Tipo", "texto"),
+        ("horas", "Horas/año", "num"), ("euros", "€ primer año", "crudo"),
+        ("esf", "Esfuerzo", "texto"),
+    ])
+
+    fichas = "".join(_ficha_iniciativa(i) for i in roadmap.INICIATIVAS)
+
+    return seccion(
+        "Reto 3 · Hoja de ruta", "Doce iniciativas, repartidas donde duele", "r3_iniciativas",
+        f'Doce iniciativas para siete departamentos. <strong>{t["con_ia_dentro"]} llevan IA dentro</strong> '
+        "del proceso. Las otras siete son código, escrito con un agente.",
+        f"""
+<div class="grid g4" style="margin-bottom:28px">{cabecera}</div>
+
+{leyenda(("A · la IA construye el código; en producción corre lógica determinista", design.TOKENS["claro"]["referencia"]),
+         ("B · la IA está dentro del proceso: lenguaje, voz o modelo", design.TOKENS["claro"]["acento"]))}
+{tabla}
+<p class="nota">Horas a 25 €/h de coste empresa. El capital de la 4 se libera una vez y no se mezcla
+con el ahorro anual. De la 10 solo se cuentan sus horas: los euros de liquidación ya están en la 4.</p>
+
+<h3 style="margin-top:44px">Cada una, por dentro</h3>
+{fichas}
+
+<h3 style="margin-top:44px">El cimiento de las doce</h3>
+<div class="card">
+  <h3 style="margin-top:0">{roadmap.CIMIENTO["nombre"]}</h3>
+  <p>{roadmap.CIMIENTO["que_hace"]}</p>
+  <p class="nota">{roadmap.CIMIENTO["porque"]}</p>
+</div>""",
+    )
+
+
+def _seccion_r3_prioridad() -> Dict[str, str]:
+    """Puntos 3 y 4 del enunciado: la matriz y el calendario, juntos.
+
+    Van en la misma página a propósito: son la misma historia contada dos veces
+    —así las priorizo, así caen en el tiempo— y separarlas obligaba a saltar de
+    página en mitad de la frase.
+    """
+    rapidas = "".join(
+        f'<div class="card"><div class="dato">{i["n"]}</div>'
+        f'<div class="dato-lbl" style="font-size:15px;color:var(--tinta);margin-top:10px">'
+        f'<strong>{i["nombre"]}</strong></div>'
+        f'<p class="nota">{i["kpi"]}: de {i["base"]} a {i["objetivo"]}.</p></div>'
+        for i in roadmap.quick_wins()
+    )
+
+    return seccion(
+        "Reto 3 · Hoja de ruta", "Cómo las priorizo y cuándo caen", "r3_prioridad",
+        "El esfuerzo lo marcan <strong>el acceso al dato y quién valida el resultado</strong>. "
+        "Programar ya no es el cuello de botella.",
+        f"""
+<div class="card">
+  <h3 style="margin-top:0">Impacto × esfuerzo</h3>
+  {grafico(grafico_r3_matriz())}
+  <p class="nota" style="border:0;padding:0;margin-top:14px">
+  <strong>●</strong> la IA solo construye el código &nbsp;·&nbsp; <strong>◆</strong> la IA va dentro del proceso</p>
+  <p class="nota">Eje horizontal, <strong>semanas hasta producción</strong>. Dentro va conseguir el dato,
+  acordar quién valida y las vueltas hasta que alguien lo usa. Eje vertical, euros del primer año.
+  El tamaño de la burbuja son las horas liberadas al año.</p>
+</div>
+
+<div class="card" style="margin-top:28px">
+  <h3 style="margin-top:0">Seis meses</h3>
+  {grafico(grafico_r3_calendario())}
+  <p class="nota">En azul, las tres victorias de los primeros 60 días. El mes 1 arranca con lo que ya
+  está construido y con la capa de validación del dato.</p>
+</div>
+
+<h3 style="margin-top:44px">Las tres victorias de los primeros 60 días</h3>
+<p>Una ya está desplegada, otra necesita un reloj que la dispare y la tercera se construye con datos
+que ya están.</p>
+<div class="grid g3">{rapidas}</div>
+<p class="nota">La cuarta candidata era el agente de atención al cliente. Necesita conectar pedidos y
+seguimiento de envíos, y ese permiso no llega en ocho semanas. Arranca en el mes 3.</p>""",
+    )
+
+
+def _seccion_r3_exito() -> Dict[str, str]:
+    """Punto 5 del enunciado, y el cierre obligatorio de supuestos."""
+    escalera = tabla_html(pd.DataFrame([
+        {"n": f"<strong>{n}</strong>", "t": t, "c": c} for n, t, c in roadmap.ESCALERA
+    ]), [("n", "Peldaño", "crudo"), ("t", "Qué significa", "texto"), ("c", "Cuándo", "texto")])
+
+    kpis = tabla_html(pd.DataFrame([{
+        "n": i["n"], "nombre": i["nombre"], "kpi": i["kpi"],
+        "base": i["base"], "obj": i["objetivo"],
+    } for i in roadmap.INICIATIVAS]), [
+        ("n", "#", "num"), ("nombre", "Iniciativa", "texto"), ("kpi", "Cómo se mide", "texto"),
+        ("base", "Hoy", "texto"), ("obj", "A seis meses", "texto"),
+    ])
+
+    adopcion = "".join(
+        f'<li><strong>{t}</strong> — {d}</li>' for t, d in roadmap.CAPACITACION
+    )
+
+    supuestos = tabla_html(pd.DataFrame([{
+        "c": f"<strong>{c}</strong>", "v": v, "p": p,
+        "o": ('<span class="tag tag-dato">dato</span>' if o == "dato"
+              else '<span class="tag tag-mio">estimado</span>' if o == "estimado"
+              else '<span class="tag tag-mio">regla</span>'),
+    } for c, v, p, o in roadmap.SUPUESTOS]), [
+        ("c", "Supuesto", "crudo"), ("v", "Valor", "texto"),
+        ("o", "Origen", "crudo"), ("p", "De dónde sale", "texto"),
+    ])
+
+    return seccion(
+        "Reto 3 · Hoja de ruta", "Cómo se mide y cómo se consigue que lo usen", "r3_exito",
+        "Casi todas entran por el <strong>peldaño 2</strong>, el de proponer y que alguien apruebe. "
+        "Se sube cuando el KPI lo permite.",
+        f"""
+<h3 style="margin-top:0">La escalera</h3>
+<p>Nada entra en automático el primer día. Cada corrección que hace la persona sirve además para
+afinar el cálculo.</p>
+{escalera}
+
+<h3 style="margin-top:44px">Un KPI por iniciativa, con su línea base</h3>
+<p>Donde hoy no hay nada medido queda escrito. Lo primero que hace esa iniciativa es crear la medida.</p>
+{kpis}
+<p class="nota">Por encima de las doce hay un KPI de la hoja de ruta entera:
+<strong>cuántas siguen usándose tres meses después de entregarse</strong>.</p>
+
+<h3 style="margin-top:44px">Cuatro reglas de adopción</h3>
+<div class="card"><ul style="margin:0;padding-left:20px;line-height:1.7">{adopcion}</ul>
+<p class="nota">Es el tercer tipo de IA, la que acaba en manos del equipo. De esto depende que las
+doce sigan vivas.</p></div>
+
+<h3 style="margin-top:44px">Supuestos sobre los que se ha priorizado</h3>
+<p>Cada número sale de una cifra del caso o de una estimación declarada.</p>
+{supuestos}
+<p class="nota">Construir rápido con un agente traslada el riesgo al mantenimiento. La regla del
+repositorio lo cubre: todo en código, pipeline reproducible y decisiones fechadas.</p>""",
+    )
+
+
+def paginas_reto3() -> List[Dict[str, str]]:
+    """Las cinco páginas del Reto 3, en orden."""
+    c = roadmap.cifras_de_partida()
+    return [
+        _seccion_r3_dolor(c),
+        _seccion_r3_metodo(),
+        _seccion_r3_iniciativas(),
+        _seccion_r3_prioridad(),
+        _seccion_r3_exito(),
+    ]
+
 
 ESTRUCTURA = [
     (
@@ -1350,7 +1730,13 @@ ESTRUCTURA = [
     ),
     (
         "Reto 3 · Hoja de ruta",
-        [("reto3", "IA a 6 meses", "pendiente")],
+        [
+            ("r3_dolor", "Dónde duele", ""),
+            ("r3_metodo", "Método y preguntas", ""),
+            ("r3_iniciativas", "12 iniciativas", ""),
+            ("r3_prioridad", "Prioridad y calendario", ""),
+            ("r3_exito", "Éxito y adopción", ""),
+        ],
     ),
     (
         "Referencia",
@@ -1433,27 +1819,17 @@ def _panel_servicio(pid: str, grupo: str, titulo: str, destino: str) -> str:
 <div class="panel" id="pag-{pid}">
   <div class="pag-cabecera"><div class="pag-ruta">{grupo}</div><h1>{titulo}</h1></div>
   <div class="card">
-    <p>El Reto 2 no es un informe: es un <strong>proceso desplegado</strong> que se ejecuta
-    solo cada día a las 00:00 y deja la propuesta en el Google Sheet que revisa Compras.
-    Por eso vive en su propia dirección en lugar de dentro de este fichero.</p>
-    <p style="margin-top:14px">Allí están la propuesta de la semana, cómo se calcula,
-    las decisiones que la explican, el esquema de cómo funcionaría en producción y el
-    historial de ejecuciones automáticas.</p>
+    <p>El Reto 2 es un <strong>proceso desplegado</strong> que se ejecuta solo cada día a las
+    00:00 y deja la propuesta en el Google Sheet que revisa Compras. Por eso vive en su propia
+    dirección y no dentro de este fichero.</p>
+    <p style="margin-top:14px">Allí están la propuesta de la semana, cómo se calcula, las
+    decisiones que la explican, el esquema de producción y el historial de ejecuciones.</p>
     <p style="margin-top:18px">
       <a class="siguiente" href="{destino}" target="_blank" rel="noopener"
          style="display:inline-flex;text-decoration:none">
         Abrir el servicio de reposición <span class="flecha">↗</span></a>
     </p>
   </div>
-</div>"""
-
-
-def _panel_pendiente(pid: str, grupo: str, titulo: str, texto: str) -> str:
-    """Hueco para un reto que todavía no está hecho. Se dice, no se disimula."""
-    return f"""
-<div class="panel" id="pag-{pid}">
-  <div class="pag-cabecera"><div class="pag-ruta">{grupo}</div><h1>{titulo}</h1></div>
-  <div class="card"><p>{texto}</p></div>
 </div>"""
 
 
@@ -1479,6 +1855,7 @@ def construir_informe(
         _seccion_modelos(metricas),
         _seccion_stock(metricas),
         _seccion_insights(metricas),
+        *paginas_reto3(),
         _seccion_glosario(metricas['catalogo'].iloc[0]),
         _seccion_asunciones(metricas),
         pagina_decisiones(ejemplos, metricas["resumen_limpieza"]),
@@ -1490,10 +1867,6 @@ def construir_informe(
     paneles.append(_panel_servicio(
         "reto2", "Reto 2 · Reposición", "Propuesta semanal de reposición",
         config.URL_SERVICIO_RETO2))
-    paneles.append(_panel_pendiente(
-        "reto3", "Reto 3 · Hoja de ruta", "IA a 6 meses",
-        "Pendiente. Aquí irá la hoja de ruta de IA para Compras, Ventas, Planificación, "
-        "Logística, Producto, Marketing y Atención al cliente."))
 
     html = f"""<!doctype html>
 <!-- data-theme="claro" fuerza el tema claro al abrir, aunque el sistema esté en

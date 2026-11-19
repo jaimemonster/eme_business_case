@@ -1,0 +1,11 @@
+concepto,valor,origen,de_donde_sale
+Coste hora interno,25 €/h,estimado,"Perfil administrativo medio, coste empresa."
+Plantilla,≈14 personas,estimado,Compras 2 · Planificación 1 · Logística 3 · Producto 2 · Marketing 2 · Atención 2 · Dirección 2.
+Contactos de cliente,"0,30 por pedido",estimado,≈69 a la semana. El caso no trae datos de atención.
+Drops al año,6,dato,12 drops en 22 meses.
+Modelos nuevos por drop,≈10,dato,123 modelos en 12 drops.
+Margen medio por unidad,"42,1 €",dato,558 k€ sobre 13.260 unidades.
+Exceso de stock,11.705 uds · 191 k€ a coste,dato,103 de 123 modelos sobre el umbral.
+Liquidación,40 % de descuento sobre el 15 % del exceso,estimado,Al 25 % el retorno sería de 58.900 €.
+Iniciativa 10,Solo cuentan sus horas,regla,Los 35.300 € de liquidación ya están contados en la 4.
+Capital y ahorro,Columnas distintas,regla,El capital se libera una vez. Las horas se ahorran cada año.
