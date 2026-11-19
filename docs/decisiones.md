@@ -726,35 +726,6 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   se recorta es el entregable, no el cálculo.
 - **Estado:** confirmado con el usuario.
 
-### [2026-11-18] Se probó Prophet y se descartó por los datos, no por prejuicio
-- **Contexto:** Prophet es la opción obvia para una serie temporal con estacionalidad,
-  y había que medirla en vez de descartarla de palabra.
-- **Decisión:** se probó con el **mismo backtesting** (12 cortes, horizonte 14 semanas)
-  en cinco configuraciones, un modelo por categoría. Se descarta.
-- **Evidencia:**
-
-  | Configuración | MAE | sesgo absoluto |
-  |---------------|-----|----------------|
-  | multiplicativo, tendencia libre | 295,97 | 2.833 % |
-  | aditivo, tendencia libre | 51,52 | 512 % |
-  | aditivo, 4 armónicos | 24,67 | 181 % |
-  | aditivo, tendencia rígida | 24,60 | 180 % |
-  | aditivo, sin tendencia (su mejor versión) | 14,69 | 74,4 % |
-  | **el modelo que usamos** | **6,02** | **24,9 %** |
-
-  Lo revelador no es que pierda, sino **cómo** pierde: mejora cuanto más se le ata.
-  Ésa es la firma de un modelo con demasiados grados de libertad para los datos que
-  hay. Con 95 semanas —menos de dos ciclos anuales completos— Prophet estima una
-  estacionalidad anual y una tendencia flexible a partir de prácticamente una sola
-  observación de cada época del año, y extrapola de forma salvaje.
-- **Por qué gana el otro:** el modelo elegido **entrena las diez categorías juntas**,
-  así que estima el patrón estacional con diez veces más datos; Prophet ajusta una
-  serie por categoría y no puede compartir nada entre ellas.
-- **Reto:** 2.
-- **Impacto:** ninguno en las cifras. Prophet no se añade como dependencia: pesa
-  ~100 MB con `cmdstanpy` y tardaría 13 s por backtesting, a cambio de ser peor.
-- **Estado:** medido y descartado.
-
 ### [2026-11-18] El Reto 3 son cinco páginas del mismo informe, no un documento aparte
 - **Contexto:** el menú lateral del informe ya reservaba un hueco al Reto 3 marcado
   como «pendiente». La hoja de ruta podía entregarse como documento suelto o como
@@ -874,4 +845,100 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
 - **Reto:** 3.
 - **Impacto:** siguen siendo 12 iniciativas. Las que llevan IA dentro pasan de 5 a 6, las horas
   de 1.073 a 1.229 y el ahorro recurrente de 75.700 € a 79.600 €.
+- **Estado:** aplicado.
+
+### [2026-11-19] El gráfico de venta y stock se mueve a la propuesta, con selector por modelo
+- **Contexto:** estaba en `/metodo`, que es la página que explica el cálculo. Compras entra
+  por la propuesta y no llega a verlo, y además el total del catálogo no le dice qué hacer
+  con una línea concreta.
+- **Decisión:** pasa a `/`, encima de la tabla, con un selector de los 50 modelos que
+  aparecen en la propuesta. La curva de un modelo **hereda la forma estacional de su
+  categoría** —que es donde el modelo tiene señal— escalada por el peso del modelo dentro de
+  ella: el mismo reparto que usa la propuesta, no una segunda estimación.
+- **Opciones consideradas:** entrenar un modelo por cada uno de los 123 modelos, descartado
+  por lo mismo que no se entrena por SKU (25 % de semanas a cero a nivel de modelo); y
+  redibujar en JavaScript, descartado porque obligaría a duplicar en JS el código del gráfico.
+- **Cómo funciona:** las 51 series se calculan una sola vez con la propuesta y viajan en una
+  tabla con `modelo_id`. El selector solo cambia la query (`/?modelo=EME073-NAV`), así que la
+  página se rehace en milisegundos y el enlace de un modelo se puede compartir.
+- **Reto:** 2.
+- **Impacto:** ninguna cifra cambia. `demand.generar_prevision` devuelve ahora también la
+  curva por categoría, sin entrenar dos veces.
+- **Estado:** aplicado.
+
+### [2026-11-19] Nueve modelos al banco de pruebas: gana el gradient boosting con pérdida de Poisson
+- **Contexto:** la comparativa en vivo tenía tres baselines y un solo modelo de verdad. Con
+  esos cuatro candidatos no se puede afirmar que el elegido sea bueno, solo que gana a tres
+  reglas sencillas.
+- **Evidencia:** mismo backtesting (12 cortes, paso 4, origen móvil, 14 semanas de horizonte)
+  sobre nueve modelos además de los tres baselines. `notebooks/banco_modelos.py`:
+
+  | Modelo | MAE | \|sesgo\| |
+  |--------|-----|---------|
+  | **gradient boosting, pérdida de Poisson** | **5,87** | **21,0 %** |
+  | gradient boosting, árboles llanos | 5,97 | 23,1 % |
+  | gradient boosting, pérdida cuadrática (el que había) | 6,02 | 24,9 % |
+  | gradient boosting, árboles hondos | 6,09 | 24,5 % |
+  | gradient boosting clásico de sklearn | 6,15 | 27,1 % |
+  | media móvil | 6,36 | 37,9 % |
+  | extra trees | 6,37 | 30,3 % |
+  | bosque aleatorio | 6,73 | 34,2 % |
+  | regresión Ridge | 8,13 | 62,4 % |
+  | regresión de Poisson lineal | 8,63 | 64,6 % |
+
+- **Decisión:** el modelo pasa a entrenarse con **pérdida de Poisson**. Es la pérdida que
+  corresponde al objetivo: unidades vendidas son conteos no negativos cuya varianza crece con
+  la media, y la pérdida cuadrática asume lo contrario.
+- **Lo que enseña la tabla:** los lineales son los peores con diferencia, así que la relación
+  entre ritmo reciente, estacionalidad y semanas vista no es lineal. Y los árboles hondos
+  pierden contra los llanos: con ~5.000 filas y menos de dos ciclos anuales, más capacidad es
+  memorizar, no aprender.
+- **Por qué solo cuatro candidatos en vivo:** cada modelo añade ~12 s al arranque del servicio.
+  La web compara los cuatro que importan; el banco completo se reproduce con el script.
+- **Reto:** 2.
+- **Clave:** sí
+- **Impacto:** MAE de 6,02 a **5,87** y sesgo del 24,9 % al **21,0 %**. Cambian las unidades
+  propuestas de cada SKU.
+- **Estado:** medido y aplicado.
+
+### [2026-11-19] El gráfico enseña el efecto del pedido, no solo la previsión
+- **Contexto:** el gráfico dibujaba la venta y el stock previstos, pero no se veía qué cambia
+  por aprobar la propuesta, que es la decisión que tiene delante quien lo mira.
+- **Decisión:** el panel de stock lleva dos futuros. En gris, lo que quedaría **sin reponer
+  nada**. En azul, **con el pedido propuesto**, que entra en el almacén seis semanas después de
+  firmarlo. El escalón de la línea azul son las unidades que se piden.
+- **Además:** cada línea lleva su etiqueta pegada al final en vez de una leyenda aparte, y el
+  corte entre lo observado y lo previsto va rotulado. El selector de modelo filtra también la
+  tabla de abajo.
+- **Reto:** 2.
+- **Impacto:** ninguna cifra nueva. En `BLAZE PUFFER GREY MELANGE`, sin pedido el stock llega a
+  cero a mitad de diciembre; con el pedido, aguanta el horizonte.
+- **Estado:** aplicado.
+
+### [2026-11-19] CORRECCIÓN: la proyección de stock ignoraba las compras ya pedidas
+- **Contexto:** el gráfico de la propuesta dibujaba el almacén bajando de 16.283 a 12.670
+  unidades en 14 semanas. Era falso.
+- **Qué pasaba:** la proyección restaba la demanda prevista pero **no sumaba las compras que
+  ya están pedidas y llegan dentro del horizonte**: 131 pedidos, **9.427 unidades** repartidas
+  en las siete semanas siguientes al corte.
+- **Decisión:** la proyección suma las llegadas en su semana. La línea «si no pido nada» pasa
+  a significar lo que de verdad significa: sin pedir **nada más**. Las llegadas se dibujan
+  además como barras bajo la línea, porque era lo que no se veía.
+- **Impacto:** el almacén no se vacía, **crece un 36 %**: de 16.283 a 22.211 unidades. Es el
+  argumento más fuerte del caso y estaba invertido. Las 347 unidades de la propuesta son el
+  3,7 % de lo que ya viene, y van dirigidas a los SKUs que rompen.
+- **Reto:** 2.
+- **Clave:** sí
+- **Estado:** corregido.
+
+### [2026-11-19] La venta del gráfico se parte en precio completo y precio especial
+- **Contexto:** el panel de venta se titulaba «unidades vendidas por semana» y dibujaba solo
+  la venta a precio completo, que es la que alimenta la previsión. En la semana de Black
+  Friday la línea baja, y leído así parece que se vendió menos.
+- **Evidencia:** semana del 25 de noviembre de 2024: **291 unidades en total, 191 a precio
+  completo y 100 a precio especial**. Las tres semanas anteriores fueron 351, 314 y 308. El
+  volumen no sube en Black Friday: lo que cambia es el precio.
+- **Decisión:** el panel se titula «unidades vendidas a precio completo» y lleva debajo, en
+  área gris, lo vendido a precio especial. Así la caída de la línea en campaña se explica sola.
+- **Reto:** 2.
 - **Estado:** aplicado.

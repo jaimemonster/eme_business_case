@@ -243,75 +243,119 @@ actual sin más daría {num(ritmo * len(curva))} uds; el modelo dice {num(total)
 </figure>"""
 
 
-def grafico_historico(serie: pd.DataFrame) -> str:
-    """Stock y venta semanales, con la previsión del modelo pegada al final.
+def grafico_historico(serie: pd.DataFrame, modelos=(), actual: str = "") -> str:
+    """Un año de almacén y de venta, con lo que ya viene y lo que se propone.
 
-    Dos paneles que comparten el eje de tiempo en lugar de dos ejes en el mismo
-    marco: el stock se mueve entre 13.000 y 16.000 unidades y la venta entre 150
-    y 500, así que superponerlos obligaría a un segundo eje y a creerse la escala.
+    Tres cosas que el gráfico tiene que contar y que no se ven en una tabla:
 
-    A la izquierda de la línea de corte todo es dato observado; a la derecha, lo
-    que dice el modelo. El stock previsto es el que quedaría sin reponer nada.
+    1. **El almacén no se vacía, crece.** La proyección suma las compras que ya
+       están pedidas y llegan dentro del horizonte. Una línea que las ignorase
+       enseñaría el stock bajando cuando va a subir.
+    2. **Lo que llega** va en barras bajo la línea, semana a semana.
+    3. **La venta se parte en dos.** A precio completo (la que alimenta la
+       previsión) y a precio especial. Sin separarlas, la semana de Black Friday
+       parece una caída de ventas cuando lo que cambia es el precio.
+
+    Dos paneles con el mismo eje de tiempo en vez de dos ejes en el mismo marco:
+    el stock se mueve en miles de unidades y la venta en cientos.
     """
-    x0, x1 = 58, 1100
+    x0, x1 = 58, 1030
     paso = (x1 - x0) / (len(serie) - 1)
     n_obs = int((serie["tipo"] == "observado").sum())
     x_corte = x0 + paso * (n_obs - 1)
 
+    def y_de(v, y_sup, y_inf, techo):
+        return y_inf - (min(float(v), techo) / techo) * (y_inf - y_sup)
+
     def ruta(col, desde, hasta, y_sup, y_inf, techo, cerrada=False):
-        puntos = [
-            f"{x0 + paso * i:.1f},{y_inf - (serie[col].iloc[i] / techo) * (y_inf - y_sup):.1f}"
-            for i in range(desde, hasta)
-        ]
-        d = "M" + "L".join(puntos)
+        pts = [f"{x0 + paso * i:.1f},{y_de(serie[col].iloc[i], y_sup, y_inf, techo):.1f}"
+               for i in range(desde, hasta)]
+        d = "M" + "L".join(pts)
         if cerrada:
             d += f"L{x0 + paso * (hasta - 1):.1f},{y_inf}L{x0 + paso * desde:.1f},{y_inf}Z"
         return d
 
-    techo_stock = float(serie["stock"].max()) * 1.12
-    techo_venta = float(serie["demanda"].max()) * 1.18
-    paneles = []
-    for col, titulo, y_sup, y_inf, techo, gris in (
-        ("stock", "Unidades en el almacén", 34, 140, techo_stock, True),
-        ("demanda", "Unidades vendidas por semana", 196, 296, techo_venta, False),
-    ):
-        clase = "g-linea gris" if gris else "g-linea"
-        masa = (
-            f'<path class="g-masa" d="{ruta(col, 0, len(serie), y_sup, y_inf, techo, True)}"/>'
-            if gris else ""
-        )
-        paneles.append(
-            f'<text class="g-tit" x="{x0}" y="{y_sup - 12:.0f}">{titulo}</text>'
-            f'{masa}'
-            f'<line class="g-eje" x1="{x0}" y1="{y_inf}" x2="{x1}" y2="{y_inf}"/>'
-            f'<path class="{clase}" d="{ruta(col, 0, n_obs, y_sup, y_inf, techo)}"/>'
-            f'<path class="{clase} prev" d="{ruta(col, n_obs - 1, len(serie), y_sup, y_inf, techo)}"/>'
-            f'<line class="g-corte" x1="{x_corte:.1f}" y1="{y_sup - 6}" '
-            f'x2="{x_corte:.1f}" y2="{y_inf}"/>'
-            f'<text class="g-val" x="{x1}" y="{y_sup - 12:.0f}" text-anchor="end">'
-            f'{num(serie[col].iloc[n_obs - 1])} hoy</text>'
-        )
+    pedido = float(serie["stock_con_pedido"].iloc[-1] - serie["stock"].iloc[-1])
+    llega_total = float(serie.get("llega", pd.Series(dtype=float)).sum())
+    techo_stock = max(float(serie["stock_con_pedido"].max()), 1.0) * 1.16
+    techo_venta = max(float((serie["demanda"] + serie["demanda_especial"]).max()), 1.0) * 1.22
+    S = (36, 152, techo_stock)
+    D = (206, 294, techo_venta)
 
-    # Una marca de mes cada cuatro semanas, para no apelmazar el eje.
+    # Barras de lo que ya viene de camino, dentro del panel de stock y con su
+    # propia escala: comparten sitio con la línea pero no compiten con ella.
+    techo_llega = max(float(serie["llega"].max()) if "llega" in serie else 0.0, 1.0)
+    barras = "".join(
+        f'<rect class="g-llega" x="{x0 + paso * i - paso * 0.3:.1f}" '
+        f'y="{S[1] - (serie["llega"].iloc[i] / techo_llega) * 34:.1f}" '
+        f'width="{paso * 0.6:.1f}" height="{(serie["llega"].iloc[i] / techo_llega) * 34:.1f}" rx="1.5"/>'
+        for i in range(n_obs, len(serie)) if float(serie["llega"].iloc[i]) > 0
+    ) if "llega" in serie else ""
+
+    # Etiquetas al final de cada línea, separadas si se pisan.
+    y_sin = y_de(serie["stock"].iloc[-1], *S)
+    y_con = y_de(serie["stock_con_pedido"].iloc[-1], *S)
+    if abs(y_sin - y_con) < 13:
+        y_con -= 13 - abs(y_sin - y_con)
+    etiquetas = [
+        f'<text class="g-etq" x="{x1 + 8:.0f}" y="{y_sin + 3.5:.1f}">si no pido nada</text>',
+        f'<text class="g-etq acento" x="{x1 + 8:.0f}" y="{y_con + 3.5:.1f}">con el pedido</text>',
+        f'<text class="g-etq acento" x="{x1 + 8:.0f}" '
+        f'y="{y_de(serie["demanda"].iloc[-1], *D) + 3.5:.1f}">previsto</text>',
+    ]
+
+    partes = [
+        f'<text class="g-tit" x="{x0}" y="{S[0] - 13:.0f}">Unidades en el almacén</text>',
+        f'<path class="g-masa" d="{ruta("stock", 0, n_obs, *S, True)}"/>',
+        barras,
+        f'<line class="g-eje" x1="{x0}" y1="{S[1]}" x2="{x1}" y2="{S[1]}"/>',
+        f'<path class="g-linea gris" d="{ruta("stock", 0, n_obs, *S)}"/>',
+        f'<path class="g-linea gris prev" d="{ruta("stock", n_obs - 1, len(serie), *S)}"/>',
+        f'<path class="g-linea prev" d="{ruta("stock_con_pedido", n_obs - 1, len(serie), *S)}"/>',
+        f'<text class="g-tit" x="{x0}" y="{D[0] - 13:.0f}">Unidades vendidas a precio completo</text>',
+        f'<line class="g-eje" x1="{x0}" y1="{D[1]}" x2="{x1}" y2="{D[1]}"/>',
+        f'<path class="g-masa" d="{ruta("demanda_especial", 0, n_obs, *D, True)}"/>',
+        f'<path class="g-linea" d="{ruta("demanda", 0, n_obs, *D)}"/>',
+        f'<path class="g-linea prev" d="{ruta("demanda", n_obs - 1, len(serie), *D)}"/>',
+        "".join(etiquetas),
+        f'<line class="g-corte" x1="{x_corte:.1f}" y1="{S[0] - 8}" x2="{x_corte:.1f}" y2="{D[1]}"/>',
+        f'<text class="g-hoy" x="{x_corte - 6:.1f}" y="{S[0] - 12}" text-anchor="end">observado</text>',
+        f'<text class="g-hoy acento" x="{x_corte + 6:.1f}" y="{S[0] - 12}">previsto</text>',
+    ]
     marcas = "".join(
         f'<text class="g-sem" x="{x0 + paso * i:.1f}" y="312" text-anchor="middle">'
         f'{serie["inicio_semana"].iloc[i].day} {MESES_CORTOS[serie["inicio_semana"].iloc[i].month - 1]}</text>'
         for i in range(0, len(serie), 5)
     )
-    sombra = (f'<rect class="g-area-prev" x="{x_corte:.1f}" y="28" '
-              f'width="{x1 - x_corte:.1f}" height="268" rx="4"/>')
+    sombra = (f'<rect class="g-area-prev" x="{x_corte:.1f}" y="30" '
+              f'width="{x1 - x_corte:.1f}" height="266" rx="4"/>')
 
-    cae = serie["stock"].iloc[-1] - serie["stock"].iloc[n_obs - 1]
-    return f"""<figure style="margin:0"><div class="figura">
-<svg viewBox="0 0 1120 322" role="img" aria-label="Stock semanal en el almacén y unidades
-vendidas por semana durante el último año, con las {len(serie) - n_obs} semanas siguientes
-previstas por el modelo.">
-{sombra}{"".join(paneles)}{marcas}</svg></div>
-<p class="pie">Línea continua, dato observado. Discontinua, previsión del modelo.
-El stock de la derecha es el que quedaría <strong>sin reponer nada</strong>: en
-{len(serie) - n_obs} semanas bajaría {num(abs(cae))} unidades, de {num(serie["stock"].iloc[n_obs - 1])}
-a {num(serie["stock"].iloc[-1])}. Esa es la forma del problema: la venta sube y baja con la
-temporada y el almacén apenas se mueve.</p>
+    hoy = float(serie["stock"].iloc[n_obs - 1])
+    fin = float(serie["stock"].iloc[-1])
+    gesto = "sube" if fin > hoy else "baja"
+    opciones = "".join(
+        f'<option value="{esc(mid)}"{" selected" if mid == actual else ""}>{esc(nom)}</option>'
+        for mid, nom in modelos
+    )
+    selector = (
+        f'<div class="barra" style="margin:0 0 14px">'
+        f'<select onchange="location=\'/?modelo=\'+encodeURIComponent(this.value)">{opciones}</select>'
+        f'<span class="pie" style="margin:0">La tabla de abajo se filtra con el mismo modelo.</span>'
+        f'</div>' if opciones else ""
+    )
+    return f"""{selector}<figure style="margin:0"><div class="figura">
+<svg viewBox="0 0 1120 322" role="img" aria-label="Unidades en el almacén y unidades vendidas
+por semana durante el último año, con {len(serie) - n_obs} semanas previstas, las compras que
+ya vienen de camino y el efecto del pedido propuesto.">
+{sombra}{"".join(partes)}{marcas}</svg></div>
+<p class="pie"><strong>Arriba, el almacén.</strong> Las barras azules son las
+<strong>{num(llega_total)} unidades que ya están pedidas</strong> y llegan en las próximas
+semanas, así que el stock {gesto} de {num(hoy)} a {num(fin)} aunque no se compre nada más.
+La línea azul añade las {num(pedido)} unidades de la propuesta, que entran a las
+{config.LEAD_TIME_SEMANAS} semanas.<br>
+<strong>Abajo, la venta a precio completo</strong>, que es la que alimenta la previsión. El
+área gris es lo vendido a precio especial: en la semana de Black Friday el volumen no sube,
+lo que cambia es el precio, y por eso la línea azul baja esa semana.</p>
 </figure>"""
 
 
@@ -469,7 +513,8 @@ sin parar el proceso.</p>
 
 # --- página 1 · propuesta --------------------------------------------------
 
-def pagina_propuesta(r: Dict[str, pd.DataFrame], ejecutado: dt.datetime) -> str:
+def pagina_propuesta(r: Dict[str, pd.DataFrame], ejecutado: dt.datetime,
+                    modelo: str = "") -> str:
     p, res = r["propuesta"], r["resumen"].set_index("concepto")["valor"]
     nec = r["necesidad"]
     demanda = nec["demanda_horizonte"].sum()
@@ -483,6 +528,7 @@ def pagina_propuesta(r: Dict[str, pd.DataFrame], ejecutado: dt.datetime) -> str:
         kpi("Rotura inminente", num(res["SKUs en prioridad crítica"]), "se agotan antes de que llegue"),
     ])
 
+    tabla = p[p["modelo_id"] == modelo] if modelo else p
     filas = "".join(
         f'<tr data-pri="{esc(f["prioridad"] or "normal")}" data-prov="{esc(f["proveedor_habitual"])}">'
         f'<td><span class="pri {esc(f["prioridad"] or "normal")}">{esc(f["prioridad"] or "normal")}</span></td>'
@@ -494,10 +540,27 @@ def pagina_propuesta(r: Dict[str, pd.DataFrame], ejecutado: dt.datetime) -> str:
         f'<td class="num"><strong>{num(f["unidades_propuestas"])}</strong></td>'
         f'<td class="num">{eur(f["coste_pedido"])}</td>'
         f'<td class="motivo">{esc(f["motivo"])}</td></tr>'
-        for _, f in p.iterrows()
+        for _, f in tabla.iterrows()
     )
     provs = "".join(f'<option value="{esc(x)}">{esc(x)}</option>'
                     for x in sorted(p["proveedor_habitual"].unique()))
+
+    # La serie del gráfico ya viene calculada para todos los modelos: aquí solo
+    # se filtra la que toca y se arma la lista del selector, que manda también
+    # sobre la tabla: el gráfico y las líneas que se aprueban hablan del mismo
+    # modelo o el lector tiene que cuadrarlas de cabeza.
+    todas = r["historico_prevision"]
+    modelos_graf = list(todas[["modelo_id", "modelo_nombre"]].drop_duplicates()
+                        .itertuples(index=False, name=None))
+    if modelo not in {m for m, _ in modelos_graf}:
+        modelo = ""
+    serie_graf = todas[todas["modelo_id"] == modelo].reset_index(drop=True)
+    filtro_aviso = (
+        f'<p class="pie" style="margin:16px 0 0">Tabla filtrada por '
+        f'<strong>{esc(serie_graf["modelo_nombre"].iloc[0])}</strong>: '
+        f'{len(p[p["modelo_id"] == modelo])} de {len(p)} líneas. '
+        f'<a href="/">Ver todas</a></p>'
+    ) if modelo else ""
 
     cuerpo = f"""
 {cabecera("Generada automáticamente", "Qué reponer",
@@ -507,6 +570,12 @@ def pagina_propuesta(r: Dict[str, pd.DataFrame], ejecutado: dt.datetime) -> str:
 hay {num(disponible)} uds entre almacén y camino para una demanda de {num(demanda)} uds en
 {HORIZONTE} semanas, unas {num(disponible / demanda, 1)} veces lo necesario. La propuesta sale
 pequeña porque el problema no es comprar poco: es que el stock está en los SKUs equivocados.</div>
+
+<section class="bloque" style="margin-top:26px">
+<h2>Un año de venta y de stock, y lo que viene</h2>
+{grafico_historico(serie_graf, modelos_graf, modelo)}
+</section>
+
 <div class="barra">
   <button class="btn primario" id="btn-sheet">Exportar a Google Sheets</button>
   <a class="btn" href="/descargar/excel">Descargar Excel</a>
@@ -516,6 +585,7 @@ pequeña porque el problema no es comprar poco: es que el stock está en los SKU
   <select id="fprov"><option value="">Todos los proveedores</option>{provs}</select>
   <span id="aviso-exporta"></span>
 </div>
+{filtro_aviso}
 <div class="tabla-caja"><table id="tabla"><thead><tr>
   <th>Prioridad</th><th>Modelo</th><th>Proveedor</th>
   <th style="text-align:right">Stock</th><th style="text-align:right">En camino</th>
@@ -552,11 +622,6 @@ def pagina_metodo(r: Dict[str, pd.DataFrame]) -> str:
         f'<td class="num">{num(f["sesgo_abs_pct"], 1)} %</td></tr>'
         for _, f in comp.iterrows()
     )
-    # Prophet se midió con este mismo backtesting pero no se ejecuta en cada
-    # visita: añadiría ~100 MB de dependencias y 13 s por carga para quedar quinto.
-    filas += ('<tr><td>Prophet <span style="color:var(--tinta-3)">· probado y '
-              'descartado</span></td><td class="num">14,69</td>'
-              '<td class="num">74,4 %</td></tr>')
 
     # Un SKU bien cubierto: demanda alta pero stock y mercancía en camino de sobra.
     nec = r["necesidad"]
@@ -567,11 +632,6 @@ def pagina_metodo(r: Dict[str, pd.DataFrame]) -> str:
     cuerpo = f"""
 {cabecera("Método", "Cómo funciona", "El proceso entero, de las ventas al pedido.")}
 {diagrama_calculo(r)}
-
-<section class="bloque">
-<h2>Un año de venta y de stock, y lo que viene</h2>
-{grafico_historico(r["historico_prevision"])}
-</section>
 
 <section class="bloque">
 <h2>Cómo se predice la demanda</h2>
@@ -614,10 +674,12 @@ por SKU y desvío sobre el total.</p>
 <div class="tabla-caja" style="margin-top:12px;max-height:none"><table style="min-width:480px">
 <thead><tr><th>Método</th><th style="text-align:right">Error por SKU</th>
 <th style="text-align:right">Desvío del total</th></tr></thead><tbody>{filas}</tbody></table></div>
-<p class="nota" style="margin-top:12px"><strong>Sobre Prophet:</strong> se probó en cinco
-configuraciones. Pierde, y mejora cuanto más se le ata la tendencia. Ésa es la firma de un
-modelo con demasiados grados de libertad para 95 semanas de datos, menos de dos ciclos anuales
-con los que estimar una estacionalidad anual.</p>
+<p class="nota" style="margin-top:12px"><strong>Fuera de esta tabla se probaron ocho
+modelos más</strong> con el mismo backtesting: bosques aleatorios, extra trees, regresión
+Ridge, regresión de Poisson y cuatro configuraciones distintas de gradient boosting. Ninguno
+baja de 5,87. Los lineales son los que peor salen (MAE 8,1 y 8,6): la relación entre ritmo
+reciente, estacionalidad y semanas vista no es lineal. El banco de pruebas completo está en
+<code>notebooks/banco_modelos.py</code>.</p>
 </section>
 
 <section class="bloque">

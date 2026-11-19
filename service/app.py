@@ -73,8 +73,14 @@ def _resultado(forzar: bool = False) -> Dict[str, pd.DataFrame]:
 # --- páginas ---------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
-def propuesta() -> str:
-    return vista.pagina_propuesta(_resultado(), _cache["momento"])  # type: ignore[arg-type]
+def propuesta(modelo: str = "") -> str:
+    """La propuesta de la semana. `modelo` elige qué serie dibuja el gráfico.
+
+    Va por query en vez de por JavaScript porque las series de los 51 modelos ya
+    están calculadas en el resultado cacheado: la página se rehace en milisegundos
+    y el enlace de un modelo concreto se puede compartir.
+    """
+    return vista.pagina_propuesta(_resultado(), _cache["momento"], modelo)  # type: ignore[arg-type]
 
 
 @app.get("/metodo", response_class=HTMLResponse)

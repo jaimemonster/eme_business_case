@@ -168,8 +168,16 @@ code{{font-family:var(--mono);font-size:.88em;background:var(--superficie-2);
 /* El stock se pinta como masa, no como línea: lo que cuenta es el volumen
    parado, y una línea plana arriba del panel dejaba medio panel vacío. */
 .g-masa{{fill:var(--tinta-3);opacity:.14}}
+/* Lo que ya viene de camino: barras bajo la linea de stock. */
+.g-llega{{fill:var(--acento);opacity:.38}}
 .g-corte{{stroke:var(--tinta-3);stroke-width:1;stroke-dasharray:3 3}}
 .g-tit{{font-size:11px;fill:var(--tinta-2);font-weight:600}}
+/* Etiquetas pegadas al final de cada linea: una leyenda aparte obliga a
+   mirar dos sitios para saber que es cada trazo. */
+.g-etq{{font-size:10.5px;fill:var(--tinta-3)}}
+.g-etq.acento{{fill:var(--acento);font-weight:600}}
+.g-hoy{{font-size:10px;fill:var(--tinta-3);letter-spacing:.04em;text-transform:uppercase}}
+.g-hoy.acento{{fill:var(--acento)}}
 .bx-warn-l{{fill:var(--superficie-2);stroke:var(--linea);stroke-width:1;stroke-dasharray:5 4}}
 .leyenda{{display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;font-size:.8rem;color:var(--tinta-2)}}
 .leyenda span{{display:inline-flex;align-items:center;gap:7px}}

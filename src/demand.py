@@ -306,9 +306,14 @@ def entrenar_modelo_nivel(hist: pd.DataFrame, horizonte: int, cortes_entrenamien
     datos["grupo"] = datos["grupo"].astype("category")
 
     modelo = HistGradientBoostingRegressor(
+        # Pérdida de Poisson, no cuadrática: el objetivo son unidades vendidas,
+        # que son conteos no negativos y con varianza que crece con la media.
+        # Medido contra otros ocho candidatos (`notebooks/banco_modelos.py`),
+        # baja el MAE de 6,02 a 5,87 y el sesgo del 24,9 % al 21,0 %.
+        loss="poisson",
         # Deliberadamente pequeño: con ~5.000 filas y menos de dos ciclos
         # estacionales, un modelo grande memoriza el histórico en vez de
-        # aprender el patrón.
+        # aprender el patrón. Probado hondo (max_depth=8) y es peor.
         max_depth=4,
         max_iter=250,
         learning_rate=0.06,
@@ -461,6 +466,7 @@ def curva_semanal(
     corte: pd.Timestamp,
     horizonte: int,
     modelo_entrenado=None,
+    por_grupo: bool = False,
 ) -> pd.DataFrame:
     """Unidades previstas **semana a semana**, no solo el total del horizonte.
 
@@ -470,7 +476,9 @@ def curva_semanal(
     entre la primera semana y la peor de enero hay un factor de más de tres.
 
     Devuelve una fila por semana con la fecha, el número de semana vista desde el
-    corte y las unidades previstas.
+    corte y las unidades previstas. Con `por_grupo` devuelve el detalle por
+    categoría en vez del total: es lo que permite dibujar la curva de un modelo
+    concreto, que hereda la forma estacional de su categoría.
     """
     hist = demanda_grupo(serie[serie["inicio_semana"] <= corte])
     if modelo_entrenado is None:
@@ -480,19 +488,23 @@ def curva_semanal(
         # iguales y se marca como plana para que nadie la lea como estacional.
         total = nivel_estacional(hist, corte, horizonte).clip(lower=0).sum()
         semanas = [corte + pd.Timedelta(weeks=k + 1) for k in range(horizonte)]
-        return pd.DataFrame({
+        plana = pd.DataFrame({
             "inicio_semana": semanas,
             "h": range(1, horizonte + 1),
             "unidades": total / horizonte,
             "estimada": False,
         })
+        if por_grupo:
+            plana["grupo"] = "TODOS"
+        return plana
 
     modelo, columnas = modelo_entrenado
     rasgos = _rasgos_ml(hist, corte, horizonte)
     X = rasgos[columnas].copy()
     X["grupo"] = X["grupo"].astype("category")
     rasgos["unidades"] = np.clip(modelo.predict(X), 0, None)
-    curva = rasgos.groupby(["h", "inicio_semana"], as_index=False)["unidades"].sum()
+    claves = (["grupo", "h", "inicio_semana"] if por_grupo else ["h", "inicio_semana"])
+    curva = rasgos.groupby(claves, as_index=False)["unidades"].sum()
     curva["estimada"] = True
     return curva.sort_values("h").reset_index(drop=True)
 
@@ -580,8 +592,8 @@ def generar_prevision(
     tablas: Dict[str, pd.DataFrame],
     horizonte: int,
     metodo: str | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Punto de entrada: devuelve (previsión por SKU, comparativa de métodos).
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Devuelve previsión por SKU, comparativa, curva total y curva por categoría.
 
     Si `metodo` es None se elige el que gana el backtesting. Es a propósito: el
     método no se decide por convicción, se decide por la medición, y la tabla
@@ -606,6 +618,11 @@ def generar_prevision(
 
     # La curva semanal viaja con la previsión: es lo que permite enseñar que la
     # cifra no es un ritmo plano multiplicado por el horizonte.
-    curva = curva_semanal(serie, corte_semana, horizonte)
+    # Se entrena una sola vez y se saca el detalle por categoría; el total es la
+    # suma de ese detalle, no una segunda pasada del modelo.
+    curva_grupo = curva_semanal(serie, corte_semana, horizonte, por_grupo=True)
+    curva = curva_grupo.groupby(
+        ["h", "inicio_semana"], as_index=False)["unidades"].sum()
+    curva["estimada"] = bool(curva_grupo["estimada"].iloc[0])
     curva.attrs["ritmo_reciente"] = ritmo_reciente(demanda_grupo(serie), corte_semana)
-    return prevision, comparativa, curva
+    return prevision, comparativa, curva, curva_grupo
