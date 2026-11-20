@@ -651,7 +651,11 @@ va a llegar.</p>
 <h2>Por qué este modelo</h2>
 <ol class="razones">
   <li><b>Gana el backtesting.</b> 12 cortes del histórico, entrenando en cada uno solo con lo
-  anterior. Es el que menos se equivoca de los cinco probados.</li>
+  anterior. Es el que menos se equivoca de los doce probados.</li>
+  <li><b>Se entrena con pérdida de Poisson.</b> El objetivo son unidades vendidas, que son
+  conteos: no hay media unidad y la varianza crece con la media. La pérdida cuadrática asume
+  lo contrario. Cambiarla bajó el error de 6,02 a 5,87 y el desvío del total del 24,9 % al
+  21,0 %.</li>
   <li><b>Entrena los diez grupos juntos.</b> El nivel es sección × categoría, y entrenarlos a
   la vez estima la estacionalidad con diez veces más datos que un modelo por serie.</li>
   <li><b>Le bastan 95 semanas.</b> Un modelo con más grados de libertad necesita más ciclos
@@ -662,9 +666,10 @@ va a llegar.</p>
   <li><b>Es determinista.</b> La misma entrada da la misma propuesta, y Compras puede auditar
   línea a línea de dónde sale cada unidad.</li>
 </ol>
-<p class="nota" style="margin-top:16px">Es un <strong>gradient boosting sobre árboles</strong>
-(<code>HistGradientBoostingRegressor</code>). La tabla es el backtesting completo: error medio
-por SKU y desvío sobre el total.</p>
+<p class="nota" style="margin-top:16px"><strong>Gradient boosting sobre árboles con pérdida de
+Poisson</strong> (<code>HistGradientBoostingRegressor(loss="poisson")</code>), árboles de
+profundidad 4 y 250 iteraciones. La tabla es el backtesting: error medio por SKU y desvío
+sobre el total.</p>
 <div class="tabla-caja" style="margin-top:12px;max-height:none"><table style="min-width:480px">
 <thead><tr><th>Método</th><th style="text-align:right">Error por SKU</th>
 <th style="text-align:right">Desvío del total</th></tr></thead><tbody>{filas}</tbody></table></div>
