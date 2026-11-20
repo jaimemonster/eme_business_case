@@ -978,3 +978,33 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   docstring de `entrenar_modelo_nivel`.
 - **Reto:** 2.
 - **Estado:** corregido.
+
+### [2026-11-20] El Reto 3 pasa de 12 iniciativas a 11: dos eran la misma decisión
+- **Contexto:** «Repartir cada pedido por tallas» y «Cuánto comprar de un modelo que aún no
+  existe» iban por separado. Son las dos mitades de una sola decisión, la primera compra de un
+  drop: una dice cuántas unidades y la otra cómo repartirlas entre tallas.
+- **Decisión:** se fusionan en **«La primera compra de un drop: cuánto y en qué tallas»**. Su
+  ficha dice en voz alta en qué se diferencia de la 1, que es la duda razonable: la 1 repone lo
+  que ya se vende, la 4 decide lo que todavía no existe.
+- **Reto:** 3.
+- **Impacto:** quedan 11 iniciativas. Los totales no cambian, porque los euros de las dos se
+  suman en la fusionada: 1.229 h/año y 79.600 € recurrentes.
+- **Estado:** aplicado.
+
+### [2026-11-20] Las páginas del Reto 3 se quedan con lo que se usa
+- **Decisión:** «Dónde duele» pierde la tabla que justificaba el reparto por departamento,
+  «Método y preguntas» pierde la columna de hipótesis, y «Éxito y adopción» pasa de cuatro
+  bloques a tres: la escalera en una línea, un KPI por iniciativa y cuatro reglas de adopción.
+  Los supuestos siguen ahí, plegados, porque CLAUDE.md exige que la hoja de ruta cierre con
+  ellos pero no son lo que se lee en esa página.
+- **Reto:** 3.
+- **Impacto:** el Reto 3 baja de 2.330 a 1.860 palabras a la vista. Ninguna cifra cambia.
+- **Estado:** aplicado.
+
+### [2026-11-20] La página de método explica la pérdida de Poisson
+- **Contexto:** el cambio de pérdida estaba en el log y en el banco de pruebas, pero la página
+  que explica cómo funciona el cálculo seguía diciendo solo «gradient boosting sobre árboles».
+- **Decisión:** se añade como razón propia, con el porqué (unidades vendidas son conteos: no
+  hay media unidad y la varianza crece con la media) y con lo que cambió al aplicarla.
+- **Reto:** 2.
+- **Estado:** aplicado.

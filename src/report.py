@@ -1379,7 +1379,7 @@ def grafico_r3_matriz() -> go.Figure:
 
 
 def grafico_r3_calendario() -> go.Figure:
-    """Las doce iniciativas repartidas en seis meses."""
+    """Las once iniciativas repartidas en seis meses."""
     cl = design.TOKENS["claro"]
     ini = sorted(roadmap.INICIATIVAS, key=lambda i: (i["mes_ini"], i["n"]))
     etiquetas = [f'{i["n"]} · {i["nombre"]}' for i in ini]
@@ -1439,21 +1439,6 @@ def _seccion_r3_dolor(c: Dict[str, float]) -> Dict[str, str]:
             pie=f'Repartida en {int(c["mercados"]) - 1} países y seis idiomas'),
     ]
 
-    pesos = pd.DataFrame([
-        {"dept": d["nombre"], "peso": d["peso"],
-         "n": sum(1 for i in roadmap.INICIATIVAS if i["dept"] == d["nombre"]),
-         "por": por}
-        for d, por in zip(roadmap.DEPARTAMENTOS, [
-            f'{eur(c["exceso_coste"])} parados y {num(c["pct_tarde"], 0)}&nbsp;% de entregas tarde: aquí está el dinero',
-            "Decide qué se compra y qué se liquida; nadie mira la cobertura por modelo",
-            f'{num(c["pedidos_semana"], 0)} pedidos a la semana en seis idiomas, con equipo mínimo',
-            f'{num(c["modelos_por_drop"], 0)} modelos nuevos por drop × siete mercados de contenido',
-            "Palanca para dar salida al exceso sin tocar el precio de lo que vende",
-            "Dirección decide cada lunes, y hoy pregunta lo que le da tiempo a cruzar",
-            "Menos dato y más mundo físico",
-        ])
-    ])
-
     cuerpo = f"""
 <div class="grid g4" style="margin-bottom:28px">{"".join(tarjetas)}</div>
 
@@ -1465,16 +1450,8 @@ def _seccion_r3_dolor(c: Dict[str, float]) -> Dict[str, str]:
   <strong>{int(c["modelos_rotura"])} modelos que rompen</strong> en cuatro semanas.</p>
 </div>
 
-<h3 style="margin-top:44px">El reparto de las doce</h3>
-<p>Compras y Planificación se llevan cinco, que es donde están los {eur(c["exceso_coste"])} parados.
-Logística, una.</p>
-{tabla_html(pesos, [
-    ("dept", "Departamento", "texto"),
-    ("peso", "Peso", "texto"),
-    ("n", "Iniciativas", "num"),
-    ("por", "Por qué", "crudo"),
-])}
-<p class="nota">Salen de las mismas tablas que el informe del Reto 1.</p>"""
+<p class="nota" style="margin-top:28px">Las cuatro cifras salen de las mismas tablas que el
+informe del Reto 1 y se recalculan con él.</p>"""
 
     return seccion(
         "Reto 3 · Hoja de ruta", "Dónde duele antes de proponer nada", "r3_dolor",
@@ -1507,11 +1484,9 @@ def _seccion_r3_metodo() -> Dict[str, str]:
 
     deptos = tabla_html(pd.DataFrame([
         {"d": f'<strong>{d["nombre"]}</strong>',
-         "p": "<br>".join(f"· {q}" for q in d["preguntas"]),
-         "h": d["hipotesis"]}
+         "p": "<br>".join(f"· {q}" for q in d["preguntas"])}
         for d in roadmap.DEPARTAMENTOS
-    ]), [("d", "Departamento", "crudo"), ("p", "Las dos preguntas propias", "crudo"),
-         ("h", "Hipótesis que pongo a prueba", "texto")])
+    ]), [("d", "Departamento", "crudo"), ("p", "Las dos preguntas propias", "crudo")])
 
     return seccion(
         "Reto 3 · Hoja de ruta", "Cómo desgrano el trabajo de cada equipo", "r3_metodo",
@@ -1521,8 +1496,8 @@ def _seccion_r3_metodo() -> Dict[str, str]:
 <div class="grid g4">{pasos}</div>
 
 <h3 style="margin-top:44px">El verbo de la tarea decide la tecnología</h3>
-<p>De las doce iniciativas, <strong>{roadmap.totales()["con_ia_dentro"]} llevan IA dentro del
-proceso</strong>. El resto es código determinista, escrito con un agente. Por eso caben doce en seis
+<p>De las once iniciativas, <strong>{roadmap.totales()["con_ia_dentro"]} llevan IA dentro del
+proceso</strong>. El resto es código determinista, escrito con un agente. Por eso caben once en seis
 meses.</p>
 {verbos}
 
@@ -1532,23 +1507,22 @@ meses.</p>
 <p class="nota">La sexta filtra más que las otras cinco.</p></div>
 
 <h3 style="margin-top:44px">Las preguntas propias de cada departamento</h3>
-<p>Cada bloque lleva detrás una sospecha sacada de los datos. Si la hipótesis se cae, se cae su iniciativa.</p>
 {deptos}""",
     )
 
 
 def _seccion_r3_iniciativas() -> Dict[str, str]:
-    """Punto 2 del enunciado: las doce, con su impacto y su esfuerzo."""
+    """Punto 2 del enunciado: las once, con su impacto y su esfuerzo."""
     t = roadmap.totales()
     cabecera = "".join([
         kpi("Horas de persona al año", t["horas"], "uds", [],
             pie="Trabajo que hoy se hace a mano y deja de hacerse"),
         kpi("Ahorro recurrente", t["euros_rec"], "€", [],
-            pie="Al año, cuando las doce estén en marcha"),
+            pie="Al año, cuando las once estén en marcha"),
         kpi("Capital liberado", t["euros_unavez"], "€", [],
             pie="Una sola vez, al dar salida al exceso. No es recurrente y no se suma"),
         kpi("Llevan IA dentro", t["con_ia_dentro"], "uds", [],
-            pie="De doce. Las otras siete son código escrito con un agente"),
+            pie="De once. Las otras cinco son código escrito con un agente"),
     ])
 
     filas = pd.DataFrame([{
@@ -1574,9 +1548,9 @@ def _seccion_r3_iniciativas() -> Dict[str, str]:
     fichas = "".join(_ficha_iniciativa(i) for i in roadmap.INICIATIVAS)
 
     return seccion(
-        "Reto 3 · Hoja de ruta", "Doce iniciativas, repartidas donde duele", "r3_iniciativas",
-        f'Doce iniciativas para siete departamentos. <strong>{t["con_ia_dentro"]} llevan IA dentro</strong> '
-        "del proceso. Las otras siete son código, escrito con un agente.",
+        "Reto 3 · Hoja de ruta", "Once iniciativas, repartidas donde duele", "r3_iniciativas",
+        f'Once iniciativas para siete departamentos. <strong>{t["con_ia_dentro"]} llevan IA dentro</strong> '
+        "del proceso. Las otras cinco son código, escrito con un agente.",
         f"""
 <div class="grid g4" style="margin-bottom:28px">{cabecera}</div>
 
@@ -1584,12 +1558,12 @@ def _seccion_r3_iniciativas() -> Dict[str, str]:
          ("B · la IA está dentro del proceso: lenguaje, voz o modelo", design.TOKENS["claro"]["acento"]))}
 {tabla}
 <p class="nota">Horas a 25 €/h de coste empresa. El capital de la 4 se libera una vez y no se mezcla
-con el ahorro anual. De la 10 solo se cuentan sus horas: los euros de liquidación ya están en la 4.</p>
+con el ahorro anual. De la 9 solo se cuentan sus horas: los euros de liquidación ya están en la 3.</p>
 
 <h3 style="margin-top:44px">Cada una, por dentro</h3>
 {fichas}
 
-<h3 style="margin-top:44px">El cimiento de las doce</h3>
+<h3 style="margin-top:44px">El cimiento de las once</h3>
 <div class="card">
   <h3 style="margin-top:0">{roadmap.CIMIENTO["nombre"]}</h3>
   <p>{roadmap.CIMIENTO["que_hace"]}</p>
@@ -1645,59 +1619,64 @@ seguimiento de envíos, y ese permiso no llega en ocho semanas. Arranca en el me
 
 
 def _seccion_r3_exito() -> Dict[str, str]:
-    """Punto 5 del enunciado, y el cierre obligatorio de supuestos."""
-    escalera = tabla_html(pd.DataFrame([
-        {"n": f"<strong>{n}</strong>", "t": t, "c": c} for n, t, c in roadmap.ESCALERA
-    ]), [("n", "Peldaño", "crudo"), ("t", "Qué significa", "texto"), ("c", "Cuándo", "texto")])
+    """Punto 5 del enunciado, y el cierre obligatorio de supuestos.
+
+    Tres bloques y nada más: la escalera en una línea, un KPI por iniciativa y
+    cuatro reglas de adopción. Los supuestos van plegados; tienen que estar, pero
+    no son lo que se lee aquí.
+    """
+    escalera = " &nbsp;→&nbsp; ".join(
+        f'<strong style="color:var(--acento)">{n} {t.lower()}</strong>' if n == "2"
+        else f'{n} {t.lower()}'
+        for n, t, _ in roadmap.ESCALERA
+    )
 
     kpis = tabla_html(pd.DataFrame([{
-        "n": i["n"], "nombre": i["nombre"], "kpi": i["kpi"],
-        "base": i["base"], "obj": i["objetivo"],
+        "nombre": f'<strong>{i["n"]}</strong> · {i["nombre"]}',
+        "kpi": i["kpi"],
+        "mov": f'{i["base"]} <span style="color:var(--tinta-3)">→</span> <strong>{i["objetivo"]}</strong>',
     } for i in roadmap.INICIATIVAS]), [
-        ("n", "#", "num"), ("nombre", "Iniciativa", "texto"), ("kpi", "Cómo se mide", "texto"),
-        ("base", "Hoy", "texto"), ("obj", "A seis meses", "texto"),
+        ("nombre", "Iniciativa", "crudo"), ("kpi", "Se mide con", "texto"),
+        ("mov", "Hoy → a seis meses", "crudo"),
     ])
 
-    adopcion = "".join(
-        f'<li><strong>{t}</strong> — {d}</li>' for t, d in roadmap.CAPACITACION
-    )
+    adopcion = "".join(f'<li><strong>{t}</strong> — {d}</li>' for t, d in roadmap.CAPACITACION)
 
     supuestos = tabla_html(pd.DataFrame([{
         "c": f"<strong>{c}</strong>", "v": v, "p": p,
         "o": ('<span class="tag tag-dato">dato</span>' if o == "dato"
-              else '<span class="tag tag-mio">estimado</span>' if o == "estimado"
-              else '<span class="tag tag-mio">regla</span>'),
+              else '<span class="tag tag-mio">estimado</span>'),
     } for c, v, p, o in roadmap.SUPUESTOS]), [
         ("c", "Supuesto", "crudo"), ("v", "Valor", "texto"),
         ("o", "Origen", "crudo"), ("p", "De dónde sale", "texto"),
     ])
 
     return seccion(
-        "Reto 3 · Hoja de ruta", "Cómo se mide y cómo se consigue que lo usen", "r3_exito",
-        "Casi todas entran por el <strong>peldaño 2</strong>, el de proponer y que alguien apruebe. "
-        "Se sube cuando el KPI lo permite.",
+        "Reto 3 · Hoja de ruta", "Cómo se mide y cómo consigo que lo usen", "r3_exito",
+        "Un KPI por iniciativa, y ninguna entra en automático el primer día.",
         f"""
-<h3 style="margin-top:0">La escalera</h3>
-<p>Nada entra en automático el primer día. Cada corrección que hace la persona sirve además para
-afinar el cálculo.</p>
-{escalera}
+<div class="card" style="text-align:center;font-size:14px;color:var(--tinta-2)">
+  {escalera}
+  <p class="nota" style="border:0;padding:0;margin-top:14px">Casi todas arrancan en el peldaño 2.
+  Se sube cuando el KPI lo permite. Cada corrección que hace la persona sirve además para afinar
+  el cálculo.</p>
+</div>
 
-<h3 style="margin-top:44px">Un KPI por iniciativa, con su línea base</h3>
-<p>Donde hoy no hay nada medido queda escrito. Lo primero que hace esa iniciativa es crear la medida.</p>
+<h3 style="margin-top:44px">Un KPI por iniciativa</h3>
 {kpis}
-<p class="nota">Por encima de las doce hay un KPI de la hoja de ruta entera:
-<strong>cuántas siguen usándose tres meses después de entregarse</strong>.</p>
+<p class="nota">Donde hoy no hay nada medido queda escrito. Lo primero que hace esa iniciativa es
+crear la medida. Y por encima de las once hay uno más: <strong>cuántas siguen usándose tres meses
+después de entregarse</strong>.</p>
 
-<h3 style="margin-top:44px">Cuatro reglas de adopción</h3>
-<div class="card"><ul style="margin:0;padding-left:20px;line-height:1.7">{adopcion}</ul>
-<p class="nota">Es el tercer tipo de IA, la que acaba en manos del equipo. De esto depende que las
-doce sigan vivas.</p></div>
+<h3 style="margin-top:44px">Cuatro reglas para que se use</h3>
+<div class="card"><ul style="margin:0;padding-left:20px;line-height:1.7">{adopcion}</ul></div>
 
-<h3 style="margin-top:44px">Supuestos sobre los que se ha priorizado</h3>
-<p>Cada número sale de una cifra del caso o de una estimación declarada.</p>
-{supuestos}
-<p class="nota">Construir rápido con un agente traslada el riesgo al mantenimiento. La regla del
-repositorio lo cubre: todo en código, pipeline reproducible y decisiones fechadas.</p>""",
+<h3 style="margin-top:44px">Supuestos</h3>
+<details><summary>Los números con los que se ha priorizado</summary>
+  <div class="detalle">{supuestos}
+  <p class="nota">Construir rápido con un agente traslada el riesgo al mantenimiento. La regla del
+  repositorio lo cubre: todo en código, pipeline reproducible y decisiones fechadas.</p></div>
+</details>""",
     )
 
 
@@ -1733,7 +1712,7 @@ ESTRUCTURA = [
         [
             ("r3_dolor", "Dónde duele", ""),
             ("r3_metodo", "Método y preguntas", ""),
-            ("r3_iniciativas", "12 iniciativas", ""),
+            ("r3_iniciativas", "11 iniciativas", ""),
             ("r3_prioridad", "Prioridad y calendario", ""),
             ("r3_exito", "Éxito y adopción", ""),
         ],

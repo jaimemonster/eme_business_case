@@ -49,7 +49,7 @@ SUPUESTOS = [
     ("Margen medio por unidad", "42,1 €", "558 k€ sobre 13.260 unidades.", "dato"),
     ("Exceso de stock", "11.705 uds · 191 k€ a coste", "103 de 123 modelos sobre el umbral.", "dato"),
     ("Liquidación", "40 % de descuento sobre el 15 % del exceso", "Al 25 % el retorno sería de 58.900 €.", "estimado"),
-    ("Iniciativa 10", "Solo cuentan sus horas", "Los 35.300 € de liquidación ya están contados en la 4.", "regla"),
+    ("Iniciativa 9", "Solo cuentan sus horas", "Los 35.300 € de liquidación ya están contados en la 3.", "regla"),
     ("Capital y ahorro", "Columnas distintas", "El capital se libera una vez. Las horas se ahorran cada año.", "regla"),
 ]
 
@@ -103,7 +103,6 @@ DEPARTAMENTOS = [
             "¿Con qué plazo planificas: el del contrato o el real de cada proveedor?",
             "¿Cómo decides la curva de tallas de un pedido?",
         ],
-        "hipotesis": "Se planifica con 6 semanas fijas y el 72 % de las entregas llega tarde.",
     },
     {
         "nombre": "Planificación", "peso": "Alto",
@@ -111,7 +110,6 @@ DEPARTAMENTOS = [
             "¿Cómo decides cuántas unidades comprar de un modelo que todavía no existe?",
             "¿Quién decide cuándo un modelo pasa a rebaja, y con qué criterio?",
         ],
-        "hipotesis": "Nadie mira la cobertura por modelo. Hay 103 de 123 sobre el umbral.",
     },
     {
         "nombre": "Atención al cliente", "peso": "Alto",
@@ -119,7 +117,6 @@ DEPARTAMENTOS = [
             "¿Qué os preguntan, y en qué idioma?",
             "¿Qué pasa con un mensaje que entra un sábado a las 21:00?",
         ],
-        "hipotesis": "El motivo no se registra. Constan 7 devoluciones en 12 meses.",
     },
     {
         "nombre": "Producto", "peso": "Medio",
@@ -127,7 +124,6 @@ DEPARTAMENTOS = [
             "¿Cuánto pasa desde que llega la muestra hasta que el drop está publicado?",
             "¿Quién escribe las descripciones, y en cuántos idiomas?",
         ],
-        "hipotesis": "El contenido retrasa el lanzamiento del drop.",
     },
     {
         "nombre": "Marketing", "peso": "Medio",
@@ -135,7 +131,6 @@ DEPARTAMENTOS = [
             "¿Cómo eliges qué modelo empujar cada semana?",
             "¿Miras el stock antes de lanzar una campaña?",
         ],
-        "hipotesis": "La campaña se decide sin mirar el stock.",
     },
     {
         "nombre": "Ventas y dirección", "peso": "Medio-alto",
@@ -143,7 +138,6 @@ DEPARTAMENTOS = [
             "¿Qué miras el lunes por la mañana, y de dónde lo sacas?",
             "¿Qué número te gustaría tener y no tienes?",
         ],
-        "hipotesis": "El informe se monta a mano y llega con la semana empezada.",
     },
     {
         "nombre": "Logística", "peso": "Bajo",
@@ -151,13 +145,12 @@ DEPARTAMENTOS = [
             "¿Cuándo sabes de verdad que va a llegar un contenedor?",
             "¿Cómo planificas el personal de una semana de recepción?",
         ],
-        "hipotesis": "La fecha estimada del proveedor se trata como firme.",
     },
 ]
 
 
 # ---------------------------------------------------------------------------
-# Punto 2 del enunciado · Las 12 iniciativas
+# Punto 2 del enunciado · Las 11 iniciativas
 # ---------------------------------------------------------------------------
 # Campos de cada ficha:
 #   tipo          A = construida con agente, ejecuta código determinista
@@ -175,7 +168,7 @@ INICIATIVAS: List[Dict] = [
         "n": 1, "dept": "Compras", "tipo": "A",
         "nombre": "Reposición semanal automática",
         "problema": "La propuesta se monta a mano cada semana. Hay 37 modelos que rompen en cuatro semanas, 249 unidades de déficit.",
-        "que_hace": "Prevé la demanda por SKU, descuenta stock y tránsito, y deja la propuesta en un Sheet que firma Compras. Ya está desplegada.",
+        "que_hace": "Prevé la demanda de cada SKU que ya se vende, descuenta stock y tránsito, y deja la propuesta en un Sheet que firma Compras. Ya está desplegada.",
         "horas": 312, "euros_rec": 7800, "euros_unavez": 0,
         "error": "Comprar lo que ya sobra.",
         "formula": "6 h/semana × 52 × 25 €/h = 7.800 €/año. Aparte protege 10.500 € de margen (249 uds × 42,1 €).",
@@ -198,20 +191,7 @@ INICIATIVAS: List[Dict] = [
         "base": "28 %", "objetivo": "60 %",
     },
     {
-        "n": 3, "dept": "Compras", "tipo": "A",
-        "nombre": "Repartir cada pedido por tallas",
-        "problema": "Los pedidos se reparten casi a partes iguales entre tallas. Sobran 1.959 unidades en XL y XXL y faltan 1.240 de la M.",
-        "que_hace": "Calcula cuánto pesa cada talla en la venta real de esa categoría y reparte el pedido con esos pesos.",
-        "horas": 0, "euros_rec": 8000, "euros_unavez": 0,
-        "error": "Comprar tallas que no se venden, drop tras drop.",
-        "formula": "Evitar la mitad de las 2.017 uds que hoy sobran son 16.500 € que no se gastan. Se imputa la mitad al año.",
-        "esfuerzo": 2, "dato": 2, "peldano": 2,
-        "mes_ini": 3, "mes_fin": 3, "quick": False, "hecho": False,
-        "kpi": "SKUs sin una sola venta en 6 meses",
-        "base": "21", "objetivo": "menos de 10",
-    },
-    {
-        "n": 4, "dept": "Planificación", "tipo": "A",
+        "n": 3, "dept": "Planificación", "tipo": "A",
         "nombre": "Plan de liquidación del exceso",
         "problema": "103 de 123 modelos pasan el umbral de cobertura: 11.705 unidades y 191 k€ a coste, con 51 semanas de cobertura mediana.",
         "que_hace": "Ordena el exceso por capital parado y por lo que aún vende, y propone descuento y mercado sin bajar de un suelo de margen.",
@@ -224,20 +204,20 @@ INICIATIVAS: List[Dict] = [
         "base": "29,2 semanas", "objetivo": "menos de 22",
     },
     {
-        "n": 5, "dept": "Planificación", "tipo": "A+B",
-        "nombre": "Cuánto comprar de un modelo que aún no existe",
-        "problema": "Seis drops al año, diez modelos nuevos en cada uno. Sin ventas previas, la primera compra se decide a ojo.",
-        "que_hace": "Busca modelos parecidos en categoría, sección, precio y color entre los 123 con histórico, y usa su curva de venta como punto de partida.",
-        "horas": 0, "euros_rec": 18000, "euros_unavez": 0,
-        "error": "Fallar la primera compra de 62 modelos al año.",
-        "formula": "217 k€ de compra anual a coste. Un 8 % menos de error son 18.000 €.",
+        "n": 4, "dept": "Planificación", "tipo": "A+B",
+        "nombre": "La primera compra de un drop: cuánto y en qué tallas",
+        "problema": "Seis drops al año, diez modelos nuevos en cada uno. Sin ventas previas se compra a ojo y se reparte casi a partes iguales entre tallas: hoy sobran 1.959 unidades en XL y XXL y faltan 1.240 de la M.",
+        "que_hace": "Para el cuánto, busca modelos parecidos en categoría, sección, precio y color entre los 123 con histórico y usa su curva de venta. Para las tallas, reparte con el peso real de cada talla en esa categoría. La 1 repone lo que ya se vende; esta decide lo que todavía no existe.",
+        "horas": 0, "euros_rec": 26000, "euros_unavez": 0,
+        "error": "Fallar la primera compra de 62 modelos al año, y repetir las tallas que no se venden.",
+        "formula": "217 k€ de compra anual a coste: un 8 % menos de error son 18.000 €. Más 8.000 € por dejar de comprar la mitad de las 2.017 uds que hoy sobran en XL y XXL.",
         "esfuerzo": 5, "dato": 1, "peldano": 1,
         "mes_ini": 4, "mes_fin": 6, "quick": False, "hecho": False,
-        "kpi": "Desviación de la primera compra frente a la venta real",
-        "base": "sin medir", "objetivo": "menos del 20 %",
+        "kpi": "SKUs sin una sola venta en 6 meses",
+        "base": "21", "objetivo": "menos de 10",
     },
     {
-        "n": 6, "dept": "Atención al cliente", "tipo": "B",
+        "n": 5, "dept": "Atención al cliente", "tipo": "B",
         "nombre": "Agente de chat y voz multiidioma",
         "problema": "El 45 % de la facturación viene de seis países fuera de España. Fuera de horario no contesta nadie.",
         "que_hace": "Responde estado del pedido, disponibilidad y dudas de talla, tramita devoluciones y pasa a una persona con el contexto. Chat primero, voz después.",
@@ -250,7 +230,7 @@ INICIATIVAS: List[Dict] = [
         "base": "0 %", "objetivo": "55 %",
     },
     {
-        "n": 7, "dept": "Atención al cliente", "tipo": "B",
+        "n": 6, "dept": "Atención al cliente", "tipo": "B",
         "nombre": "Por qué devuelven, y arreglar el tallaje",
         "problema": "En 12 meses constan 7 devoluciones y ninguna trae motivo. La M se agota y la XXL se queda, sin saber si es demanda o patrón.",
         "que_hace": "El agente etiqueta cada devolución con un motivo fijo (talla, calidad, envío, cambio de opinión). A los tres meses Producto los cruza con la venta por talla y corrige los patrones que fallan.",
@@ -263,7 +243,7 @@ INICIATIVAS: List[Dict] = [
         "base": "≈0 %", "objetivo": "90 %",
     },
     {
-        "n": 8, "dept": "Producto", "tipo": "B",
+        "n": 7, "dept": "Producto", "tipo": "B",
         "nombre": "Ficha de producto automática y multiidioma",
         "problema": "62 modelos nuevos al año para siete mercados. El contenido retrasa cada lanzamiento.",
         "que_hace": "Del catálogo y la foto saca nombre, descripción, atributos, texto alternativo y SEO en seis idiomas. Producto revisa y publica.",
@@ -276,7 +256,7 @@ INICIATIVAS: List[Dict] = [
         "base": "sin medir", "objetivo": "menos de 3",
     },
     {
-        "n": 9, "dept": "Ventas y dirección", "tipo": "B",
+        "n": 8, "dept": "Ventas y dirección", "tipo": "B",
         "nombre": "Preguntar a los datos en lenguaje natural",
         "problema": "Cada pregunta nueva pasa por alguien que sepa cruzar tablas. Las que no son urgentes no llegan a preguntarse.",
         "que_hace": "«¿Cómo va la chaqueta en Francia?» se traduce a SQL sobre las tablas limpias. Enseña la consulta que ha escrito y devuelve el resultado. Solo lectura.",
@@ -289,20 +269,20 @@ INICIATIVAS: List[Dict] = [
         "base": "0 %", "objetivo": "50 %",
     },
     {
-        "n": 10, "dept": "Marketing", "tipo": "A",
+        "n": 9, "dept": "Marketing", "tipo": "A",
         "nombre": "Qué promocionar esta semana, según el stock",
         "problema": "37 modelos a punto de romper y 103 con exceso. La campaña de la semana no mira ninguno de los dos.",
-        "que_hace": "Lista semanal de qué empujar (exceso que aún vende) y qué dejar quieto (lo que va a romper). Es el canal de salida de la 4.",
+        "que_hace": "Lista semanal de qué empujar (exceso que aún vende) y qué dejar quieto (lo que va a romper). Es el canal de salida de la 3.",
         "horas": 52, "euros_rec": 1300, "euros_unavez": 0,
         "error": "Gastar en promocionar lo que ya no hay.",
-        "formula": "1 h/semana × 52 × 25 € = 1.300 €. Los 35.300 € de la 4 no se cuentan aquí.",
+        "formula": "1 h/semana × 52 × 25 € = 1.300 €. Los 35.300 € de la 3 no se cuentan aquí.",
         "esfuerzo": 1, "dato": 2, "peldano": 2,
         "mes_ini": 2, "mes_fin": 2, "quick": False, "hecho": False,
         "kpi": "Gasto de promoción sobre modelos con exceso",
         "base": "sin medir", "objetivo": "más del 60 %",
     },
     {
-        "n": 11, "dept": "Ventas y dirección", "tipo": "A+B",
+        "n": 10, "dept": "Ventas y dirección", "tipo": "A+B",
         "nombre": "Informe del lunes automático",
         "problema": "El informe existe desde el Reto 1, pero se lanza a mano.",
         "que_hace": "Se genera los lunes a las 7:00 y manda un resumen con los tres cambios de la semana y lo que hay que decidir.",
@@ -315,10 +295,10 @@ INICIATIVAS: List[Dict] = [
         "base": "0 %", "objetivo": "100 %",
     },
     {
-        "n": 12, "dept": "Logística", "tipo": "A",
+        "n": 11, "dept": "Logística", "tipo": "A",
         "nombre": "Plan semanal de entradas al almacén",
         "problema": "El almacén planifica con la fecha estimada del proveedor. Hay 37 pedidos vencidos sin confirmar.",
-        "que_hace": "Calendario de lo que entra cada semana con la fecha corregida por el retraso real. Avisa si lo retrasado afecta a un modelo en rotura.",
+        "que_hace": "Toma el plazo real que mide la 2 y lo convierte en un calendario de lo que entra cada semana. Avisa si lo retrasado afecta a un modelo en rotura.",
         "horas": 104, "euros_rec": 2600, "euros_unavez": 0,
         "error": "Montar el turno de recepción para un camión que no llega.",
         "formula": "2 h/semana de replanificación × 52 × 25 € = 2.600 €.",
@@ -330,7 +310,7 @@ INICIATIVAS: List[Dict] = [
 ]
 
 
-# Hace posibles las doce, así que va en el mes 1 y no compite en la matriz.
+# Hace posibles las once, así que va en el mes 1 y no compite en la matriz.
 CIMIENTO = {
     "nombre": "Capa de validación del dato en la entrada",
     "que_hace": "Valida cada fichero que entra (SKUs huérfanos, duplicados, tipos mezclados, fechas imposibles) y para el proceso antes de que el error llegue a un informe.",
@@ -489,7 +469,7 @@ def documento_markdown() -> str:
         f"- Concentración: **{int(c['conc_modelos'])} modelos** ({c['conc_pct_catalogo']:.0f} % del catálogo) "
         "hacen la mitad de la facturación.",
         "",
-        "De ahí el reparto: Compras y Planificación se llevan cinco iniciativas de doce, y Logística una.",
+        "De ahí el reparto: Compras y Planificación se llevan cuatro de las once, y Logística una.",
         "",
         "## 1 · El método y las preguntas",
         "",
@@ -511,16 +491,16 @@ def documento_markdown() -> str:
         "",
         "### Las tres preguntas propias de cada departamento",
         "",
-        _fila("Departamento", "Peso", "Preguntas", "Hipótesis que pone a prueba"),
-        _fila("---", "---", "---", "---"),
-        *[_fila(d["nombre"], d["peso"], "<br>".join(f"· {q}" for q in d["preguntas"]), d["hipotesis"])
+        _fila("Departamento", "Peso", "Preguntas propias"),
+        _fila("---", "---", "---"),
+        *[_fila(d["nombre"], d["peso"], "<br>".join(f"· {q}" for q in d["preguntas"]))
           for d in DEPARTAMENTOS],
         "",
-        "## 2 · Las 12 iniciativas",
+        "## 2 · Las 11 iniciativas",
         "",
         f"**{e(t['horas'])} horas** de persona al año, **{e(t['euros_rec'])} €** de ahorro recurrente y "
         f"**{e(t['euros_unavez'])} €** de capital liberado una sola vez. "
-        f"Solo **{t['con_ia_dentro']} de 12** llevan IA dentro del proceso.",
+        f"Solo **{t['con_ia_dentro']} de 11** llevan IA dentro del proceso.",
         "",
         "Tipo **A**, la IA escribe el código y en producción corre lógica determinista. "
         "Tipo **B**, la IA está dentro del proceso.",
@@ -603,7 +583,7 @@ def documento_markdown() -> str:
         _fila("---", "---", "---", "---", "---"),
         *[_fila(i["n"], i["nombre"], i["kpi"], i["base"], i["objetivo"]) for i in INICIATIVAS],
         "",
-        "Por encima de las doce hay un KPI de la hoja de ruta entera: **cuántas siguen usándose tres "
+        "Por encima de las once hay un KPI de la hoja de ruta entera: **cuántas siguen usándose tres "
         "meses después de entregarse**.",
         "",
         "### Adopción",
