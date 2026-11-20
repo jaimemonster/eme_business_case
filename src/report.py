@@ -1473,10 +1473,6 @@ def _seccion_r3_metodo() -> Dict[str, str]:
         for n, (titulo, que, como) in enumerate(roadmap.METODO, start=1)
     )
 
-    verbos = tabla_html(pd.DataFrame([
-        {"v": f"<strong>{v}</strong>", "q": q, "t": t} for v, q, t in roadmap.VERBOS
-    ]), [("v", "Verbo", "crudo"), ("q", "Qué es", "texto"), ("t", "Qué lo automatiza", "texto")])
-
     comunes = "".join(
         f'<li><strong>{p}</strong><br><span class="nota" style="margin:0;border:0;padding:0">{busco}</span></li>'
         for p, busco in roadmap.PREGUNTAS_COMUNES
@@ -1490,16 +1486,14 @@ def _seccion_r3_metodo() -> Dict[str, str]:
 
     return seccion(
         "Reto 3 · Hoja de ruta", "Cómo desgrano el trabajo de cada equipo", "r3_metodo",
-        "Pido <strong>los tres últimos ficheros que hicieron</strong> y parto el trabajo en tareas. "
-        "Cada tarea cae en uno de cuatro verbos, y el verbo decide la tecnología.",
+        "Pido <strong>los tres últimos ficheros que hicieron</strong> y desgrano el trabajo en "
+        "tareas. De ahí salen las once iniciativas.",
         f"""
 <div class="grid g4">{pasos}</div>
 
-<h3 style="margin-top:44px">El verbo de la tarea decide la tecnología</h3>
-<p>De las once iniciativas, <strong>{roadmap.totales()["con_ia_dentro"]} llevan IA dentro del
-proceso</strong>. El resto es código determinista, escrito con un agente. Por eso caben once en seis
-meses.</p>
-{verbos}
+<p style="margin-top:28px">De las once iniciativas, <strong>{roadmap.totales()["con_ia_dentro"]}
+llevan IA dentro del proceso</strong>. El resto es código determinista, escrito con un agente.
+Por eso caben once en seis meses.</p>
 
 <h3 style="margin-top:44px">Seis preguntas para todos</h3>
 <p>Una por casilla de la ficha. Lo propio de cada equipo son las dos de la tabla siguiente.</p>

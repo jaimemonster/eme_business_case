@@ -22,18 +22,9 @@ La unidad de análisis es la tarea recurrente, y la evidencia es el fichero que 
 | Paso | Qué se hace | Cómo |
 | --- | --- | --- |
 | **1. Inventariar** | Qué entrega cada equipo cada semana | El fichero, el mensaje o la decisión que sale de su mesa. |
-| **2. Descomponer** | Cada entregable, en tareas con verbo | «Enséñame los tres últimos y hazlo delante de mí.» |
+| **2. Descomponer** | Cada entregable, en las tareas que lo producen | «Enséñame los tres últimos y hazlo delante de mí.» |
 | **3. Puntuar** | Horas al año, dato disponible, coste del error | De aquí salen los dos ejes de la matriz. |
 | **4. Decidir cuánto se automatiza** | Qué hace la máquina y qué firma una persona | Casi todo arranca con la máquina proponiendo y alguien aprobando. |
-
-### El verbo de la tarea decide la tecnología
-
-| Verbo | Qué es | Qué lo automatiza |
-| --- | --- | --- |
-| **Recoger** | Descargar, copiar, consolidar | Integración. Nada de IA. |
-| **Calcular** | Aplicar una regla fija | Código determinista. Nada de IA. |
-| **Juzgar** | Decidir con criterio | La persona. La IA propone y explica. |
-| **Comunicar** | Escribir, responder, traducir | LLM. |
 
 ### Las seis preguntas comunes a todos los departamentos
 

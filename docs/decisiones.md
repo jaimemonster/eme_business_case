@@ -1008,3 +1008,15 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   hay media unidad y la varianza crece con la media) y con lo que cambió al aplicarla.
 - **Reto:** 2.
 - **Estado:** aplicado.
+
+### [2026-11-20] Fuera la tabla de los cuatro verbos
+- **Contexto:** la página de método clasificaba cada tarea en recoger, calcular, juzgar o
+  comunicar, y asociaba cada verbo a una tecnología. Era una capa de teoría de más sobre un
+  método que ya se entiende con sus cuatro pasos.
+- **Decisión:** se quita la tabla y el apartado. El dato que iba debajo —seis de las once
+  llevan IA dentro del proceso— se queda, porque no dependía de los verbos. El paso 2 del
+  método pasa a decir «cada entregable, en las tareas que lo producen».
+- **Reto:** 3.
+- **Impacto:** la página baja de 484 a 446 palabras. Ninguna cifra cambia. También sale de la
+  presentación, para que las dos digan lo mismo.
+- **Estado:** aplicado.
