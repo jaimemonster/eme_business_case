@@ -61,21 +61,12 @@ SUPUESTOS = [
 METODO = [
     ("Inventariar", "Qué entrega cada equipo cada semana",
      "El fichero, el mensaje o la decisión que sale de su mesa."),
-    ("Descomponer", "Cada entregable, en tareas con verbo",
+    ("Descomponer", "Cada entregable, en las tareas que lo producen",
      "«Enséñame los tres últimos y hazlo delante de mí.»"),
     ("Puntuar", "Horas al año, dato disponible, coste del error",
      "De aquí salen los dos ejes de la matriz."),
     ("Decidir cuánto se automatiza", "Qué hace la máquina y qué firma una persona",
      "Casi todo arranca con la máquina proponiendo y alguien aprobando."),
-]
-
-# El verbo de la tarea decide la tecnología. Es la parte del método que evita
-# poner un modelo de lenguaje donde basta una resta.
-VERBOS = [
-    ("Recoger", "Descargar, copiar, consolidar", "Integración. Nada de IA."),
-    ("Calcular", "Aplicar una regla fija", "Código determinista. Nada de IA."),
-    ("Juzgar", "Decidir con criterio", "La persona. La IA propone y explica."),
-    ("Comunicar", "Escribir, responder, traducir", "LLM."),
 ]
 
 ESCALERA = [
@@ -478,12 +469,6 @@ def documento_markdown() -> str:
         _fila("Paso", "Qué se hace", "Cómo"),
         _fila("---", "---", "---"),
         *[_fila(f"**{n}. {tit}**", que, como) for n, (tit, que, como) in enumerate(METODO, 1)],
-        "",
-        "### El verbo de la tarea decide la tecnología",
-        "",
-        _fila("Verbo", "Qué es", "Qué lo automatiza"),
-        _fila("---", "---", "---"),
-        *[_fila(f"**{v}**", q, tec) for v, q, tec in VERBOS],
         "",
         "### Las seis preguntas comunes a todos los departamentos",
         "",
