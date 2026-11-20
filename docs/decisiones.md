@@ -942,3 +942,39 @@ el cuadre de limpieza 18.292 = 17.708 + 559 + 25; y los descuentos citados en el
   área gris, lo vendido a precio especial. Así la caída de la línea en campaña se explica sola.
 - **Reto:** 2.
 - **Estado:** aplicado.
+
+### [2026-11-20] El gráfico de la propuesta pasa a Plotly, con hover
+- **Contexto:** estaba dibujado como SVG a mano. Sobre un almacén de 22.000 unidades, las dos
+  proyecciones de stock —con el pedido y sin él— se diferencian en 347 unidades: un pelo de
+  ancho. Dibujadas no se distinguen, y un gráfico de decisión que obliga a confiar en el ojo
+  no sirve.
+- **Decisión:** Plotly con `hovermode="x unified"`. Al pasar por una semana salen las siete
+  series a la vez con sus cifras, así que la diferencia entre las dos proyecciones se lee
+  exacta aunque las líneas se pisen.
+- **Opciones consideradas:** separar las dos líneas con una escala rota o un segundo panel de
+  diferencia. Las dos mienten sobre la magnitud real, que es justo lo que hay que entender:
+  el pedido es el 3,7 % de lo que ya viene de camino.
+- **Detalles:** las compras en camino van en barras sobre un eje secundario escondido, para
+  que compartan panel con la línea sin competir por la altura. Plotly entra por CDN y no
+  embebido: el servicio está en línea y embeberlo añadiría 3,5 MB a cada carga.
+- **Reto:** 2.
+- **Impacto:** ninguna cifra cambia.
+- **Estado:** aplicado.
+
+### [2026-11-20] Los recuentos de la propuesta dicen si son SKUs o modelos
+- **Contexto:** el KPI «Rotura inminente: 48» se lee como 48 modelos. Son 48 **SKUs**, es
+  decir 48 combinaciones de modelo y talla, repartidas en **45 modelos** distintos.
+- **Decisión:** el resumen publica las dos cifras y las tarjetas lo dicen: «48 SKUs (modelo ×
+  talla) en 45 modelos» y «55 SKUs de 579 · 49 modelos». La unidad que se pide es el SKU,
+  porque lo que rompe es la talla y no el modelo entero.
+- **Reto:** 2.
+- **Estado:** aplicado.
+
+### [2026-11-20] El nivel de previsión se nombra como lo que es: sección × categoría
+- **Contexto:** la documentación decía «las diez categorías». Categorías hay **6**; los diez
+  son los grupos de **sección × categoría**, y son 10 y no 12 porque en el catálogo no existe
+  la falda de hombre ni la gorra de mujer.
+- **Decisión:** se renombra en la página de método, en las razones del modelo y en el
+  docstring de `entrenar_modelo_nivel`.
+- **Reto:** 2.
+- **Estado:** corregido.

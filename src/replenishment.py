@@ -309,6 +309,12 @@ def resumen_propuesta(
         ("Venta en riesgo (€)", round(float(propuesta["venta_en_riesgo"].sum()), 2)),
         ("Proveedores implicados", propuesta["proveedor_habitual"].nunique()),
         ("SKUs en prioridad crítica", int((propuesta["prioridad"] == "critica").sum())),
+        # El recuento va en SKUs (modelo × talla), que es la unidad que se pide.
+        # Se publica también en modelos porque «48 roturas» se lee como 48
+        # modelos y son 45: la talla es lo que rompe, no el modelo entero.
+        ("Modelos en prioridad crítica",
+         int(propuesta.loc[propuesta["prioridad"] == "critica", "modelo_id"].nunique())),
+        ("Modelos a reponer", int(propuesta["modelo_id"].nunique())),
         ("SKUs en prioridad alta", int((propuesta["prioridad"] == "alta").sum())),
     ]
     return pd.DataFrame(filas, columns=["concepto", "valor"])

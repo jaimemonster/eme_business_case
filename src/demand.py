@@ -261,7 +261,9 @@ def _rasgos_ml(hist: pd.DataFrame, corte: pd.Timestamp, horizonte: int) -> pd.Da
 def entrenar_modelo_nivel(hist: pd.DataFrame, horizonte: int, cortes_entrenamiento: int = 40):
     """Entrena un modelo de nivel con el histórico disponible.
 
-    Un único modelo para las diez categorías a la vez: el grupo entra como una
+    Un único modelo para los diez grupos (sección × categoría) a la vez, que es
+    el nivel de previsión: con 2 secciones y 6 categorías salen 10 combinaciones
+    reales, porque no hay falda de hombre ni gorra de mujer. El grupo entra como una
     variable más. Con menos de dos años de histórico, estimar un modelo por
     categoría sería ajustar ruido; agrupándolas, el modelo aprende el patrón
     común y usa el grupo para desviarse de él.
